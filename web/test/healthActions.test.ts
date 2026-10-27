@@ -657,11 +657,16 @@ test("Health prints the server's words in their own direction: every finding's t
   const src = code(read(PAGE));
   const health = src.slice(src.indexOf('function Health()'), src.indexOf('function DesktopUpdateNote('));
   const printed: [string, string][] = [
-    ["a finding's title", 'itemTitle(it)'], ["a finding's detail", 'itemDetail(it)'], ["a card's summary", 'checkSummary(c)'], ["a card's note", 'checkNote(c)'],
+    ["a finding's title", 'itemTitle(it)'], ["a finding's detail", 'itemDetail(it)'], ["a card's summary", 'checkSummary(c)'],
   ];
   for (const [what, expr] of printed) {
     const at = [...health.matchAll(new RegExp(`<p\\b([^>]*)>\\{${expr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\}</p>`, 'g'))];
     assert.ok(at.length > 0, `${what} is no longer printed in a <p> of its own -- update this test`);
     for (const m of at) assert.match(m[1], /\bdir="auto"/, `${what} takes the page's direction, its full stop at its start in Arabic`);
   }
+  // The short-chapter card removes the preview's "more not shown" note because its grouped body loads all
+  // findings. Check the note's actual paragraph, regardless of how its display copy is prepared.
+  const note = health.match(/<p\b([^>]*\bdata-health-note\b[^>]*)>([\s\S]*?)<\/p>/);
+  assert.ok(note && note[2].includes('checkNote('), "a card's note is no longer printed in its own paragraph");
+  assert.match(note[1], /\bdir="auto"/, "a card's note takes the page's direction");
 });
