@@ -12,6 +12,10 @@
 // English is the source. A key IS its English string, so a missing translation degrades to correct English
 // rather than to `home.nav.library`, and adding a string never requires touching nine files at once.
 
+// Fork strings are maintained in English only; upstream translation catalogs remain untouched.
+import englishFallback from '../locales/en-US.json';
+export const ENGLISH_FALLBACK: Readonly<Record<string, string>> = englishFallback;
+
 export const LOCALES = [
   { code: 'en', name: 'English', dir: 'ltr' },
   { code: 'es', name: 'Español', dir: 'ltr' },
@@ -97,7 +101,7 @@ export async function loadDict(code: Locale): Promise<Dict> {
  * a user should never see.
  */
 export function translate(dict: Dict, key: string, vars?: Record<string, string | number>): string {
-  let out = dict[key] ?? key;
+  let out = dict[key] ?? ENGLISH_FALLBACK[key] ?? key;
   if (vars) for (const [k, v] of Object.entries(vars)) out = out.split(`{${k}}`).join(String(v));
   return out;
 }

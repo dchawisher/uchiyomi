@@ -1,0 +1,15 @@
+{
+  "Enter a volume number and a valid first and last chapter (at most 1000 apart).": "Enter a volume number and a valid first and last chapter (at most 1000 apart).",
+  "Edit chapter or volume": "Edit chapter or volume",
+  "File contains": "File contains",
+  "Chapter": "Chapter",
+  "Volume": "Volume",
+  "Volume number": "Volume number",
+  "Enter the chapters this volume contains. They will not be downloaded again. Finishing the volume advances chapter progress to its last chapter.": "Enter the chapters this volume contains. They will not be downloaded again. Finishing the volume advances chapter progress to its last chapter.",
+  "First chapter": "First chapter",
+  "Last chapter": "Last chapter",
+  "New extensions start with one source, preferably English. Choose additional languages below to enable them for future extensions too.": "New extensions start with one source, preferably English. Choose additional languages below to enable them for future extensions too.",
+  "Enabled for new extensions": "Enabled for new extensions",
+  "Enable {language} for new extensions": "Enable {language} for new extensions",
+  "Use for new extensions": "Use for new extensions"
+}

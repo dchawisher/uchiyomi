@@ -120,11 +120,18 @@ test('the scan itself sees the app: inline keys, keys() arrays, and nothing from
   assert.ok(!keys.has('Type'), 'a key quoted only in a comment (ConfirmDialog.tsx) is scanned as if it were used');
 });
 
-test('every key the app translates is in all eight locale files, non-empty, with its placeholders kept', () => {
+test('every key has translations or a registered English fork fallback, with its placeholders kept', () => {
   // Reintroduce by deleting "Worth a look" (or any key) from public/locales/ar.json: "ar.json is missing 1
   // of the app's strings: Worth a look" fails. Rename `{n}` to `{count}` in one translation and "keeps the
   // key's placeholders" fails for it: the number would never be filled in.
   const keys = appKeys();
+  // Fork changes follow the English-only locale policy. Keep full coverage for every upstream key;
+  // a new untranslated fork string must be explicitly registered in the English catalog.
+  const english = JSON.parse(readFileSync(join(ROOT, 'locales/en-US.json'), 'utf8')) as Record<string, string>;
+  for (const [key, value] of Object.entries(english)) {
+    assert.ok(keys.has(key), `unused English fallback: ${key}`);
+    assert.equal(value, key, `English fallback must retain the source string: ${key}`);
+  }
   const files = readdirSync(join(ROOT, 'public/locales')).filter((f) => f.endsWith('.json')).sort();
   assert.deepEqual(files, ['ar.json', 'de.json', 'es.json', 'fr.json', 'ja.json', 'pt-BR.json', 'ru.json', 'zh.json']);
   for (const f of files) {
@@ -134,7 +141,7 @@ test('every key the app translates is in all eight locale files, non-empty, with
     const missing: string[] = [];
     const broken: string[] = [];
     for (const k of keys.keys()) {
-      const v = dict[k];
+      const v = dict[k] ?? english[k];
       if (typeof v !== 'string' || !v.trim()) { missing.push(k); continue; }
       if (placeholders(v) !== placeholders(k)) broken.push(`${k} => ${v}`);
     }
