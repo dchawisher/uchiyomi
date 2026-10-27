@@ -47,6 +47,7 @@ import { SourceHealthBody } from '@/components/SourceHealthBody';
 import { HealthBySeries } from '@/components/HealthBySeries';
 import { Segmented } from '@/components/settings';
 import { healthQuery, healthView, setHealthView, type HealthView } from '@/lib/healthBySeries';
+import { ShortChapterHealth } from '@/components/ShortChapterHealth';
 import { releaseHref, shownVersion, updateState, type UpdateState } from '@/lib/versionLine';
 import { useSectionArrival } from '@/lib/useSectionArrival';
 import { useReduceEffects } from '@/lib/effects';
@@ -1995,8 +1996,8 @@ function Health() {
               {isOpen && c.id !== 'sources' && (
                 <div id={`health-${c.id}-details`} className="border-t border-ink-800/70">
                   <HealthCardActions check={c} />
-                  {c.note && <p data-health-note dir="auto" className="px-4 pt-3 text-[11px] leading-relaxed text-fog-500">{checkNote(c)}</p>}
-                  <div className="divide-y divide-ink-800/70">
+                  {c.note && <p data-health-note dir="auto" className="px-4 pt-3 text-[11px] leading-relaxed text-fog-500">{checkNote(c.id === 'short-chapters' ? { ...c, noteSaid: c.noteSaid?.filter((p) => p.code !== 'hidden') } : c)}</p>}
+                  {c.id === 'short-chapters' ? <ShortChapterHealth check={c} reportAt={data!.generatedAt} /> : <div className="divide-y divide-ink-800/70">
                     {c.items.map((it, i) => (
                       <HealthRow key={rowKeys[i]} rowKey={rowKeys[i]} check={c} item={it}
                         // To the chapter the finding is about, not just its series (lib/healthLinks.ts). A duplicate
@@ -2019,7 +2020,7 @@ function Health() {
                         <p dir="auto" className="text-[11px] text-fog-500">{itemDetail(it)}</p>
                       </HealthRow>
                     ))}
-                  </div>
+                  </div>}
                 </div>
               )}
             </div>

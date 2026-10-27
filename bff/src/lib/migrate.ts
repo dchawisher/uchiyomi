@@ -191,6 +191,7 @@ ALTER TABLE lib_books  ADD COLUMN IF NOT EXISTS page_dims jsonb;
 ALTER TABLE lib_books  ADD COLUMN IF NOT EXISTS published_at timestamptz;
 -- whether the scheduled updater pulls new chapters for this series (user choice at add time)
 ALTER TABLE lib_series ADD COLUMN IF NOT EXISTS auto_update boolean NOT NULL DEFAULT true;
+ALTER TABLE lib_series ADD COLUMN IF NOT EXISTS check_short_chapters boolean NOT NULL DEFAULT true;
 -- source routing for the updater: the adapter id + that adapter's stable series id/url, stamped at add time.
 -- (lib_series.source holds the display folder name, e.g. "Aqua Manga"; these hold the machine-routable values
 -- so the updater calls getSource(source_id).listChapters(source_series_id) directly — no name/url reverse-parsing.)

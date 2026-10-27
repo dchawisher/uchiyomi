@@ -18,6 +18,7 @@ import { healthMark } from '@/lib/status';
 import { selectedText } from '@/lib/counted';
 import { SERIES_PAGE, allChosen, chosenOf, findingsText, removedText, seriesCountText, toggleAll } from '@/lib/healthBySeries';
 import { HealthRow } from '@/components/HealthActions';
+import { ShortChapterCheckToggle } from '@/components/ShortChapterHealth';
 import { StatusEdge, StatusMark } from '@/components/StatusMark';
 import { ConfirmDialog, msgOf } from '@/components/ConfirmDialog';
 import { OnBody } from '@/components/ui';
@@ -105,6 +106,7 @@ export function HealthBySeries({ rows, checks }: { rows: SeriesFindings[]; check
               <div className="ms-auto flex shrink-0 flex-wrap items-center justify-end gap-x-3 gap-y-2">
                 {/* Goes somewhere: a text link, as on every row. Does something: a key. */}
                 <Link href={seriesHref(r.seriesId)} className="text-xs text-accent hover:underline">{tr('Open')}{' '}›</Link>
+                {r.findings.some((f) => f.check === 'short-chapters') && <ShortChapterCheckToggle seriesId={r.seriesId} enabled />}
                 <button type="button" className="btn-key btn-key-danger" onClick={() => setAsking([r.seriesId])}>{tr('Remove from library')}</button>
               </div>
             </div>

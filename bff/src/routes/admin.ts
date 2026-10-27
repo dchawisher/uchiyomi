@@ -104,7 +104,8 @@ import { titlesFromBackup, entriesFromBackup, type BackupEntry } from '../lib/ta
 import { linkSeries, seedTrackerFloor, TOKEN_EXPIRED, TOKEN_REJECTED, TOKEN_UNREADABLE } from '../lib/trackers';
 import { ADAPTERS, PROVIDERS, LIST_STATUSES, TRACKER_LIST_MAX, type Provider, type LibraryEntry } from '../lib/trackerProviders';
 import { open as unseal } from '../lib/secretbox';
-import { findingOf, runHealthChecks } from '../lib/health';
+import { findingOf, runHealthChecks, shortChapters } from '../lib/health';
+import { allRows } from '../lib/healthKit';
 import { autofixRun, autofixSeriesIds, autofixState, scrubAutofixRecord, scrubAutofixRun, startAutofix, stopAutofix } from '../lib/autofix';
 import { IGNORABLE_CHECKS, ignoreFinding, unignoreFinding } from '../lib/healthIgnore';
 import { readHealthSummary, scheduleHealthSummaryRefresh, storeHealthSummary } from '../lib/healthSummary';
@@ -4172,6 +4173,30 @@ export default async function adminRoutes(app: FastifyInstance) {
   });
 
   // ---- library health ----
+  // Load the full short-chapter list only when its card is opened. Grouping the report's first fifty
+  // rows would omit entire series and prevent their checks from being disabled.
+  app.get('/api/admin/health/short-chapters', async () => {
+    const [check, disabledSeries] = await Promise.all([
+      shortChapters(),
+      q<{ seriesId: string; title: string }>(`SELECT s.id AS "seriesId", s.title FROM lib_series s
+        WHERE NOT s.check_short_chapters AND ${visibleToAll('s')} ORDER BY s.title, s.id`),
+    ]);
+    return { items: allRows(check), disabledSeries };
+  });
+
+  app.post('/api/admin/series/:id/short-chapter-check', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const body = z.object({ enabled: z.boolean() }).strict().safeParse(req.body);
+    if (!body.success) return reply.code(400).send({ error: 'bad_request' });
+    const row = await one<{ id: string }>(`UPDATE lib_series s SET check_short_chapters = $2
+      WHERE s.id = $1 AND ${visibleToAll('s')} RETURNING s.id`, [id, body.data.enabled]);
+    if (!row) return reply.code(404).send({ error: 'not_found' });
+    await logAudit('series.short_chapter_check', {
+      userId: userIdOf(req), detail: { seriesId: id, enabled: body.data.enabled }, req,
+    });
+    return { ok: true, enabled: body.data.enabled };
+  });
+
   // Read-only aggregate over the library. Every check is a plain query, so this is safe to hit whenever
   // the tab is opened rather than needing a background job.
   // `view=series` (v0.72.0, the page's By series view): also every series with a finding, grouped from each card's full

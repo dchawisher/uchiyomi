@@ -796,7 +796,7 @@ export async function measured(
  * they stayed findings until somebody pressed "It's fine" on each. Reintroduce by dropping the `longStrip` test: "a
  * chapter stitched into long strips is not short" in health.int.test.ts finds it listed.
  */
-async function shortChapters(): Promise<HealthCheck> {
+export async function shortChapters(): Promise<HealthCheck> {
   // Decimal chapters are excluded on purpose: ".5" entries are usually author notices, legitimately 1 page.
   // A tombstone is excluded too -- those bytes are gone on purpose (or already reported as missing by the
   // verify task), and a page count taken before they went says nothing about anything anybody can fix.
@@ -810,6 +810,7 @@ async function shortChapters(): Promise<HealthCheck> {
             b.short_confirmed_at, b.missing_pages, b.short_result, b.page_dims
        FROM lib_books b JOIN lib_series ls ON ls.id = b.series_id AND ${visibleToAll('ls')}
       WHERE b.pages BETWEEN 1 AND 2 AND b.number = floor(b.number) AND b.pruned_at IS NULL
+        AND ls.check_short_chapters
         -- Not a chapter at a number an admin hid (#240): no chapter here, and its Fix would be refused.
         AND NOT ${atHiddenNumber('b')}
       ORDER BY ls.title, b.number`,

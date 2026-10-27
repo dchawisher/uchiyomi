@@ -367,7 +367,7 @@ export interface RepairSkip {
   why: RepairSkipWhy;
   /** When a cooldown ends, for source_cooling_down. */
   until?: string;
-  /** not_eligible: gone | confirmed | partial | not_owned | not_short; solver_down: the ping's error. */
+  /** not_eligible: gone | confirmed | partial | not_owned | not_short | check_disabled; solver_down: the ping's error. */
   detail?: string;
 }
 
@@ -907,13 +907,14 @@ const noteShort = (bookId: string, res: { why: ShortWhy; asked: number; answered
  * `detail` so the row can say it. The candidate query's own rules, in the order a person would check them.
  */
 async function whyNotShort(bookId: string): Promise<string> {
-  const b = await one<{ id: string; file: string; root: string | null; number: number; pages: number; gone: boolean; confirmed: boolean; partial: boolean; page_dims: PageDim[] | null; folder: string }>(
+  const b = await one<{ id: string; file: string; root: string | null; number: number; pages: number; gone: boolean; confirmed: boolean; partial: boolean; page_dims: PageDim[] | null; folder: string; check_short_chapters: boolean }>(
     `SELECT b.id, b.file, b.root, b.number::float8 AS number, b.pages, b.pruned_at IS NOT NULL AS gone,
-            b.short_confirmed_at IS NOT NULL AS confirmed, b.missing_pages IS NOT NULL AS partial, b.page_dims, s.folder
+            b.short_confirmed_at IS NOT NULL AS confirmed, b.missing_pages IS NOT NULL AS partial, b.page_dims, s.folder, s.check_short_chapters
        FROM lib_books b JOIN lib_series s ON s.id = b.series_id AND ${visibleToAll('s')}
       WHERE b.id = $1`, [bookId],
   ).catch(() => null);
   if (!b || b.gone) return 'gone';
+  if (!b.check_short_chapters) return 'check_disabled';
   if (b.confirmed) return 'confirmed';
   // The chapter sweep re-fetches placeholder pages (up to 10 a night); a replacement here would race it.
   if (b.partial) return 'partial';
@@ -922,6 +923,12 @@ async function whyNotShort(bookId: string): Promise<string> {
   // A chapter stitched into long strips is the chapter, not a failed download (lib/longStrip.ts, v0.60.1).
   if (longStrip(await measured(b, { left: 1 }))) return 'not_short';
   return 'not_owned';
+}
+
+async function shortCheckAllowed(seriesId: string, unattended: boolean): Promise<boolean> {
+  const row = await one<{ enabled: boolean }>(`SELECT s.check_short_chapters AND (s.auto_update OR NOT $2) AS enabled
+    FROM lib_series s WHERE s.id = $1 AND ${visibleToAll('s')}`, [seriesId, unattended]).catch(() => null);
+  return row?.enabled === true;
 }
 
 /**
@@ -962,6 +969,7 @@ async function stepShort(r: RepairResult, opts: RepairOpts, budget: { left: numb
             s.title, s.folder, s.summary, s.author, s.genres, s.web, s.status
        FROM lib_books b JOIN lib_series s ON s.id = b.series_id AND ${visibleToAll('s')}
       WHERE b.pages BETWEEN 1 AND 2 AND b.number = floor(b.number)
+        AND s.check_short_chapters
         AND b.pruned_at IS NULL AND b.short_confirmed_at IS NULL AND b.missing_pages IS NULL
         AND b.root = $1 AND b.file = s.folder || '/Chapter ' || (b.number::int)::text || '.cbz'
         AND NOT ${atHiddenNumber('b')}
@@ -1008,7 +1016,9 @@ async function stepShort(r: RepairResult, opts: RepairOpts, budget: { left: numb
   series: for (const [seriesId, rows] of bySeries) {
     { const h = halted(); if (h) { stopped = h; break; } }
     const unattended = !opts.bookId;
-    if (unattended && !(await seriesIsMonitored(seriesId))) continue;
+    // The setting may have changed since this run collected its candidates.
+    const admitted = () => shortCheckAllowed(seriesId, unattended);
+    if (!(await admitted())) continue;
     const folder = rows[0].folder;
     // Somebody else is already downloading into this folder (a series-page fetch, a Fetch newest run).
     // Two writers on one path is a lost file and a rate-limit strike each; this one simply waits a night.
@@ -1051,7 +1061,7 @@ async function stepShort(r: RepairResult, opts: RepairOpts, budget: { left: numb
 
       for (const book of rows) {
         { const h = halted(); if (h) { stopped = h; break series; } }
-        if (unattended && !(await seriesIsMonitored(seriesId))) continue series;
+        if (!(await admitted())) continue series;
         r.short.looked++;
         const at = (phase: RepairPhase, sourceId?: string) => here({
           kind: 'chapter', seriesId, bookId: book.id, title: book.title, number: Number(book.number), phase,
@@ -1096,7 +1106,7 @@ async function stepShort(r: RepairResult, opts: RepairOpts, budget: { left: numb
           if (!src || !(sourceId === book.source_id ? !resting(sourceId) : allowed(sourceId))) return null;
           if (await isDisabled(sourceId).catch(() => false)) return null;
           if (await blockedNow(sourceId).catch(() => null)) return null;
-          if (unattended && !(await seriesIsMonitored(seriesId))) return null;
+          if (!(await admitted())) return null;
           if (!(await automaticChapterAllowedFor(seriesId, chapter))) return null;
           // Everything above is a cheap filter. Re-read follow, blocklist, unattended state and health in one
           // last check immediately beside the outbound page-list call; a preference/unfollow race must not
@@ -1138,11 +1148,11 @@ async function stepShort(r: RepairResult, opts: RepairOpts, budget: { left: numb
         // "searched too recently").
         const couldSearch = budget.left > 0;
         if (!bestChapter) {
-          if (unattended && !(await seriesIsMonitored(seriesId))) continue series;
+          if (!(await admitted())) continue series;
           at('searching');
           const h = await huntSource(seriesId, book.number, {
             allowed, budget, reason: 'short_chapter', force: !!opts.bookId,
-            ...(unattended ? { admit: () => seriesIsMonitored(seriesId) } : {}),
+            admit: admitted,
           });
           huntWhy = h.why;
           if (h.followed) notes.followed.push(`${book.title} -> ${h.followed.source}`);
@@ -1153,11 +1163,11 @@ async function stepShort(r: RepairResult, opts: RepairOpts, budget: { left: numb
             else { answered++; if (n > best) { best = n; bestChapter = h.chapter; } }
           }
         }
-        if (unattended && !(await seriesIsMonitored(seriesId))) continue series;
+        if (!(await admitted())) continue series;
         const result = (why: ShortWhy) => noteShort(book.id, { why, asked, answered, best, hunt: huntWhy });
 
         if (bestChapter) {
-          if (unattended && !(await seriesIsMonitored(seriesId))) continue series;
+          if (!(await admitted())) continue series;
           at('downloading', bestChapter.source);
           const done = await replaceShort(book, bestChapter, abs, opts, notes, log, unattended);
           if (done === 'paused') continue series;
@@ -1213,7 +1223,11 @@ async function replaceShort(
     series: book.title, summary: book.summary ?? undefined, author: book.author ?? undefined,
     genres: book.genres ?? undefined, url: book.web ?? undefined, status: book.status ?? undefined,
   };
-  const preflight = repairCopyPreflight(book.series_id, chapter, unattended, false, book.source_id);
+  const preflightFor = (writing: boolean): DownloadPreflight => async () => {
+    if (!(await shortCheckAllowed(book.series_id, unattended))) return 'paused';
+    return repairCopyPreflight(book.series_id, chapter, unattended, writing, book.source_id)();
+  };
+  const preflight = preflightFor(false);
   let missing: number[] = [];
   try {
     if (unattended && !(await seriesIsMonitored(book.series_id))) return 'paused';
@@ -1241,7 +1255,7 @@ async function replaceShort(
       // A shortfall may itself put the source into cooldown. That must stop the next request, but it must
       // not discard the already-downloaded, useful partial; re-check every write-time authority except the
       // health consequence of this same request.
-      await hold.write(repairCopyPreflight(book.series_id, chapter, unattended, true, book.source_id));
+      await hold.write(preflightFor(true));
     } catch (writeError) {
       hold.drop?.();
       if (writeError instanceof DownloadPreflightError) return writeError.reason === 'paused' ? 'paused' : false;

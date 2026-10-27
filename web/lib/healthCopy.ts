@@ -411,9 +411,11 @@ function fillLasting(rec: RepairRunRecord): { text: string; partial?: boolean } 
 const NOT_ELIGIBLE = keys(
   'Skipped: the chapter is no longer there', 'Skipped: it is already marked fine', 'Skipped: it has placeholder pages, which the chapter sweep re-fetches',
   'Skipped: it was not downloaded by Uchiyomi', 'Skipped: it is no longer short', 'Skipped: it no longer qualifies',
+  'Skipped: short-chapter checking is disabled for this series',
 );
 const NOT_ELIGIBLE_BY: Record<string, (typeof NOT_ELIGIBLE)[number]> = {
   gone: NOT_ELIGIBLE[0], confirmed: NOT_ELIGIBLE[1], partial: NOT_ELIGIBLE[2], not_owned: NOT_ELIGIBLE[3], not_short: NOT_ELIGIBLE[4],
+  check_disabled: NOT_ELIGIBLE[6],
 };
 
 const until = (iso?: string): string => {

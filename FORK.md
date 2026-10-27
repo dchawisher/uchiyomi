@@ -21,6 +21,12 @@ Based on Uchiyomi v0.99.0, upstream commit `4863bbf973ebfa0ea43afe606cb257be499f
 
 The additional-source search algorithm is unchanged, pending design discussion.
 
+Suspiciously short chapters in Admin → Health are grouped into expandable series, with all findings
+available beyond the report's fifty-row preview. Each series offers **Disable short-chapter check**.
+This persistent setting covers current and future chapters and skips short-chapter repairs; use
+**Enable checking** under **Checking disabled** to restore it. Other checks retain their existing rules.
+The additive `lib_series.check_short_chapters` column defaults to true for existing and new series.
+
 ## Build
 
 `Dockerfile.fork` builds the backend and static frontend against the exact deployed upstream base image.

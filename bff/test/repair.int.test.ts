@@ -414,6 +414,22 @@ async function shortBook(n: number, pages = 2): Promise<string> {
   return id;
 }
 
+test('a disabled series is skipped by automatic and targeted short-chapter repair without contacting sources', { skip }, async () => {
+  const id = await shortBook(3);
+  await q('UPDATE lib_series SET check_short_chapters = false WHERE id = $1', [SHORT]);
+  try {
+    const auto = await runRepair(undefined, { only: ['short'], userId: null });
+    assert.equal(auto.short.looked, 0);
+    const manual = await runRepair(undefined, { only: ['short'], bookId: id, userId: null });
+    assert.equal(manual.short.looked, 0);
+    assert.deepEqual(manual.skips?.map((s: any) => [s.why, s.detail]), [['not_eligible', 'check_disabled']]);
+    assert.equal(pageCalls.length, 0);
+    assert.equal((await book(id)).pages, 2);
+  } finally {
+    await q('UPDATE lib_series SET check_short_chapters = true WHERE id = $1', [SHORT]);
+  }
+});
+
 test('a follower with more pages replaces a short chapter, and everyone keeps their place in it', { skip }, async () => {
   const id = await shortBook(3);
   pagesFor.set(cid(A, T.short, 3), 2);
@@ -495,6 +511,30 @@ test("a clean series' short chapter is replaced from the adult source it follows
     assert.equal((await book(id)).pages, 12, "the short chapter was replaced from the series' own adult source");
   } finally {
     own.isNsfw = was;
+  }
+});
+
+test('disabling the check while a page count is in flight stops the replacement', { skip }, async () => {
+  const id = await shortBook(16);
+  pagesFor.set(cid(A, T.short, 16), 2);
+  pagesFor.set(cid(B, T.short, 16), 12);
+  let reached!: () => void, open!: () => void;
+  const atGate = new Promise<void>((resolve) => { reached = resolve; });
+  pageGate = { id: cid(B, T.short, 16), reached, open: new Promise<void>((resolve) => { open = resolve; }) };
+  const running = runRepair(undefined, { only: ['short'], bookId: id, userId: null });
+  try {
+    await atGate;
+    await q('UPDATE lib_series SET check_short_chapters = false WHERE id = $1', [SHORT]);
+    open();
+    const result = await running;
+    assert.equal(result.short.replaced, 0);
+    assert.equal((await book(id)).pages, 2);
+    assert.equal(pageCalls.filter((c) => c === cid(B, T.short, 16)).length, 1, 'no replacement download started');
+  } finally {
+    open();
+    pageGate = null;
+    await running;
+    await q('UPDATE lib_series SET check_short_chapters = true WHERE id = $1', [SHORT]);
   }
 });
 

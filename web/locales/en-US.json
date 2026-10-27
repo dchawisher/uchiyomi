@@ -11,5 +11,16 @@
   "New extensions start with one source, preferably English. Choose additional languages below to enable them for future extensions too.": "New extensions start with one source, preferably English. Choose additional languages below to enable them for future extensions too.",
   "Enabled for new extensions": "Enabled for new extensions",
   "Enable {language} for new extensions": "Enable {language} for new extensions",
-  "Use for new extensions": "Use for new extensions"
+  "Use for new extensions": "Use for new extensions",
+  "Could not update short-chapter checking": "Could not update short-chapter checking",
+  "Disable short-chapter check": "Disable short-chapter check",
+  "Enable checking": "Enable checking",
+  "1 short chapter": "1 short chapter",
+  "{n} short chapters": "{n} short chapters",
+  "Disabling this check also skips short-chapter repairs for this series, including future chapters.": "Disabling this check also skips short-chapter repairs for this series, including future chapters.",
+  "Could not load short chapters": "Could not load short chapters",
+  "No short chapters to check": "No short chapters to check",
+  "Checking disabled": "Checking disabled",
+  "Retry": "Retry",
+  "Skipped: short-chapter checking is disabled for this series": "Skipped: short-chapter checking is disabled for this series"
 }
