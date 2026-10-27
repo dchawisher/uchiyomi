@@ -95,7 +95,7 @@ import { languageRulesFor, type LanguageRules } from '../lib/copyLanguage';
 import { cleanSourceOrder } from '../lib/sourcePrefs';
 import { paceLevel, rateKeyOf, restLeft } from '../lib/pace';
 import { haveNumbers } from '../lib/libraryNumbers';
-import { heldBy, isRange, rangeEnd, rawRangeEnd } from '../lib/chapterRanges';
+import { heldBy, isRange, rangeEnd, rawRangeStart, rawRangeEnd } from '../lib/chapterRanges';
 import {
   addNumbering, numberingFor, numberedChapters, stampAddNumbering, registerBusyProbe, onRenumbered, POSTING_ORDER_REFUSAL,
   type NumberingChoice,
@@ -1803,7 +1803,7 @@ export async function addSeriesFromSource(opts: {
            FROM lib_books b JOIN lib_series s ON s.id = b.series_id
            LEFT JOIN book_overrides ov ON ov.book_id = b.id
           WHERE s.folder = $1 AND b.pruned_at IS NULL AND b.number IS NOT NULL`
-      : `SELECT DISTINCT b.number, ${rawRangeEnd('b')} AS end FROM lib_books b JOIN lib_series s ON s.id = b.series_id
+      : `SELECT DISTINCT ${rawRangeStart('b')} AS number, ${rawRangeEnd('b')} AS end FROM lib_books b JOIN lib_series s ON s.id = b.series_id
           WHERE s.folder = $1 AND b.pruned_at IS NULL AND b.number IS NOT NULL`,
     [folder],
   ).catch(() => []));
@@ -3244,7 +3244,7 @@ export default async function sourceRoutes(app: FastifyInstance) {
              FROM lib_books b LEFT JOIN book_overrides ov ON ov.book_id = b.id
             WHERE b.series_id = $1 AND (COALESCE(ov.number, b.number) = ANY($2::real[]) OR ${rangeEnd('b', 'ov')} IS NOT NULL)
               AND b.pruned_at IS NULL`
-        : `SELECT b.number, ${rawRangeEnd('b')} AS end FROM lib_books b
+        : `SELECT ${rawRangeStart('b')} AS number, ${rawRangeEnd('b')} AS end FROM lib_books b
             WHERE b.series_id = $1 AND (b.number = ANY($2::real[]) OR ${isRange('b')}) AND b.pruned_at IS NULL`,
       [seriesId, numbers],
     ));

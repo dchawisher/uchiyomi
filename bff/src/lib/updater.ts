@@ -31,7 +31,7 @@ import { atHiddenNumber, isListedNotice } from './noticeChapters';
 import { hiddenNumbersOf } from './hiddenChapters';
 import { numKey } from './postingOrder';
 import { seriesHidesNotices } from './noticeSettings';
-import { heldBy, rangeEnd, rawRangeEnd } from './chapterRanges';
+import { heldBy, rangeEnd, rawRangeStart, rawRangeEnd } from './chapterRanges';
 import { isDue, refreshRadar } from './releaseRadar';
 import { finishDownloadsOn, retryCapFor, BEHIND_SQL, FINISH_MINUTES, FINISH_LANES, clearQuiet, quietWanted } from './finishDownloads';
 import { requestScout } from './scoutRequests';
@@ -588,7 +588,7 @@ async function visitSeries(seriesId: string, maxNew: number, opts: UpdateOpts): 
     ? `SELECT COALESCE(ov.number, b.number) AS number, ${rangeEnd('b', 'ov')} AS end, b.pruned_at
          FROM lib_books b LEFT JOIN book_overrides ov ON ov.book_id = b.id
         WHERE b.series_id=$1 AND ${heldBooks('b')}`
-    : `SELECT b.number, ${rawRangeEnd('b')} AS end, b.pruned_at FROM lib_books b WHERE b.series_id=$1 AND ${heldBooks('b')}`, [seriesId]);
+    : `SELECT ${rawRangeStart('b')} AS number, ${rawRangeEnd('b')} AS end, b.pruned_at FROM lib_books b WHERE b.series_id=$1 AND ${heldBooks('b')}`, [seriesId]);
   const have = heldBy(heldRows);
   // The held numbers a LIVE row stands behind. The sweep needs only `have`; "Fetch newest" tells a
   // number we hold as pages apart from one we hold only as a deliberate tombstone (see the verdict below).

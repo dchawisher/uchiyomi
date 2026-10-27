@@ -2671,6 +2671,9 @@ paths:
                       "Batman 01-07 (1987).cbz"; null for one chapter, and for a file an admin gave one number.
                       `number` and `metadata.numberSort` stay the start (1), and `metadata.number` reads the
                       range ("1–7"). Every number from the start to the end counts as held.
+                  volumeNumber:
+                    type: [number, "null"]
+                    description: Explicit volume label. When set, number and numberEnd describe its chapter coverage, independently of the filename.
                   readProgress:
                     type: [object, "null"]
                     description: >-
@@ -10138,7 +10141,7 @@ paths:
     put:
       tags:
         - admin
-      summary: Override a chapter's title or number.
+      summary: Edit a chapter or map one volume to its chapter range.
       operationId: putApiAdminBooksIdMeta
       description: Requires an admin account and a token carrying the admin scope. Scopes only ever restrict.
       parameters:
@@ -10157,7 +10160,20 @@ paths:
                 title:
                   type: string
                 number:
-                  type: number
+                  type: [number, "null"]
+                  description: Chapter number, or first chapter of a mapped volume.
+                  minimum: 0
+                  maximum: 100000
+                volumeNumber:
+                  type: [number, "null"]
+                  description: Positive volume label; requires a first and last chapter. Null clears the volume mapping.
+                  exclusiveMinimum: 0
+                  maximum: 100000
+                numberEnd:
+                  type: [number, "null"]
+                  description: Last chapter of this volume, inclusive, at least number and at most 1000 above it. No bulk/group mappings.
+                  minimum: 0
+                  maximum: 100000
       security:
         - bearer: []
       responses:

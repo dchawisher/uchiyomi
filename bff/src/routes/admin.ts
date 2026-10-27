@@ -2453,22 +2453,32 @@ export default async function adminRoutes(app: FastifyInstance) {
     const { id } = req.params as { id: string };
     const b = z.object({
       number: z.number().min(0).max(100000).nullish(),
+      volumeNumber: z.number().positive().max(100000).nullish(),
+      numberEnd: z.number().min(0).max(100000).nullish(),
       title: z.string().max(300).nullish(),
     }).safeParse(req.body);
     if (!b.success) return reply.code(400).send({ error: 'bad_request' });
 
-    const book = await one<{ number: number }>('SELECT number FROM lib_books WHERE id = $1', [id]);
+    const book = await one<{ number: number; volume_number: number | null; number_end: number | null; override_number: number | null }>(
+      `SELECT b.number, ov.volume_number, ov.number_end, ov.number AS override_number
+         FROM lib_books b LEFT JOIN book_overrides ov ON ov.book_id = b.id WHERE b.id = $1`, [id]);
     if (!book) return reply.code(404).send({ error: 'not_found' });
 
     const title = (b.data.title ?? '').trim() || null;
-    const number = b.data.number ?? null;
+    const number = b.data.number === undefined ? book.override_number : b.data.number;
+    const volumeNumber = b.data.volumeNumber === undefined ? book.volume_number : b.data.volumeNumber;
+    const numberEnd = volumeNumber == null ? null : b.data.numberEnd === undefined ? book.number_end : b.data.numberEnd;
+    if ((volumeNumber != null && (number == null || numberEnd == null || numberEnd < number || numberEnd - number > 1000))
+      || (volumeNumber == null && b.data.numberEnd != null)) {
+      return reply.code(400).send({ error: 'A volume needs a valid first and last chapter (at most 1000 apart).' });
+    }
     if (number == null && title == null) {
       await q('DELETE FROM book_overrides WHERE book_id = $1', [id]);
     } else {
       await q(
-        `INSERT INTO book_overrides (book_id, number, title, updated_at) VALUES ($1, $2, $3, now())
-         ON CONFLICT (book_id) DO UPDATE SET number = $2, title = $3, updated_at = now()`,
-        [id, number, title],
+        `INSERT INTO book_overrides (book_id, number, title, volume_number, number_end, updated_at) VALUES ($1, $2, $3, $4, $5, now())
+         ON CONFLICT (book_id) DO UPDATE SET number = $2, title = $3, volume_number = $4, number_end = $5, updated_at = now()`,
+        [id, number, title, volumeNumber, numberEnd],
       );
     }
     const affected = await one<{ n: number }>(
@@ -2476,7 +2486,7 @@ export default async function adminRoutes(app: FastifyInstance) {
     );
     await logAudit('book.meta_override', {
       userId: userIdOf(req),
-      detail: { id, from: book.number, to: number, title },
+      detail: { id, from: book.number, to: number, title, volumeNumber, numberEnd },
       req,
     });
     return { ok: true, affectedUsers: affected?.n ?? 0 };

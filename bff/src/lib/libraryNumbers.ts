@@ -72,7 +72,7 @@ export const HAVE_SQL = (alias = 'b'): string =>
      JOIN lib_series hb_s ON hb_s.id = ${alias}.series_id` : ''}
     WHERE ${alias}.series_id = $1 AND ${heldBooks(alias)}${hiddenNumbersActive() ? ` AND NOT ${bookHiddenNumber('hb_s', alias, 'o')}` : ''}
    UNION ALL
-   SELECT generate_series(floor(${alias}.number)::numeric + 1, floor(${rangeEnd(alias, 'o')})::numeric)::float8 AS number
+   SELECT generate_series(floor(COALESCE(o.number, ${alias}.number))::numeric + 1, floor(${rangeEnd(alias, 'o')})::numeric)::float8 AS number
      FROM lib_books ${alias} LEFT JOIN book_overrides o ON o.book_id = ${alias}.id
     WHERE ${alias}.series_id = $1 AND ${heldBooks(alias)} AND ${rangeEnd(alias, 'o')} IS NOT NULL
    UNION ALL

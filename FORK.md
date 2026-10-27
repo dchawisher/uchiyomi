@@ -14,7 +14,12 @@ Based on Uchiyomi v0.99.0, upstream commit `4863bbf973ebfa0ea43afe606cb257be499f
   synopsis, before offering library/download options. Opening details does not add or download the series.
 - Ratings accept half-star steps from 0.5 to 5, including API validation and database constraints.
 
-The additional-source search algorithm and chapter/volume data model are unchanged, pending design discussion.
+- Each volume can be mapped to its own chapter range from the file's menu → **Edit chapter or volume**.
+  Choose **Volume**, then enter the volume number and first/last chapters. Coverage survives rescanning,
+  prevents duplicate downloads, and finishing the volume advances chapter progress to its last chapter.
+  There are no bulk volume mappings. **Reset to file** removes the manual mapping.
+
+The additional-source search algorithm is unchanged, pending design discussion.
 
 ## Build
 

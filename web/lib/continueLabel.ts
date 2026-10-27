@@ -28,6 +28,7 @@ export interface ContinueBook {
   id: string;
   number: number;
   numberEnd?: number | null;
+  volumeNumber?: number | null;
   name?: string;
   chapterName?: string | null;
   metadata?: { numberSort?: number; number?: string; title?: string };

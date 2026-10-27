@@ -769,6 +769,8 @@ CREATE TABLE IF NOT EXISTS book_overrides (
   title      text,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE book_overrides ADD COLUMN IF NOT EXISTS volume_number real;
+ALTER TABLE book_overrides ADD COLUMN IF NOT EXISTS number_end real;
 -- Chapter number and title are DERIVED, not stored. Title is the filename minus its extension, and number
 -- is read from the filename by the row's name_rule (lib/naming.ts numberByRule). Rule 1 is numFromName(),
 -- which takes the FIRST number it finds. So "Vol 2 Ch 5.cbz" is chapter 2: it sorts between 1 and 3 in the
@@ -2115,6 +2117,17 @@ async function seedBackupExtensions(c: PoolClient): Promise<void> {
  * Run-once data migrations, oldest first. Ids are permanent: renaming one re-runs it everywhere.
  */
 const DATA_MIGRATIONS: { id: string; run: (c: PoolClient) => Promise<void> }[] = [
+  {
+    id: 'hawisher-002-volume-chapter-ranges',
+    run: async (c) => {
+      await c.query(`ALTER TABLE book_overrides ADD CONSTRAINT book_volume_range_check CHECK (
+        (volume_number IS NULL AND number_end IS NULL) OR
+        (volume_number IS NOT NULL AND volume_number > 0 AND volume_number <= 100000
+         AND number IS NOT NULL AND number >= 0 AND number <= 100000
+         AND number_end IS NOT NULL AND number_end >= number AND number_end <= 100000
+         AND number_end - number <= 1000))`);
+    },
+  },
   // Proves the mechanism end to end on real installs before anything depends on it.
   { id: '0001-noop', run: async (c) => { await c.query('SELECT 1'); } },
 

@@ -88,6 +88,7 @@ const booksSrc = (ctx: ViewCtx, p: Params, alias = 'bv') => `(
          b.updated_at, b.fingerprint, b.scanlator, b.source_id, b.pruned_at, b.pruned_reason, b.size, b.missing_pages, b.chapter_name,
          COALESCE(ov.number, b.number) AS number,
          ${rangeEnd('b', 'ov')} AS number_end,
+         ov.volume_number,
          COALESCE(ov.title,  b.title)  AS title
     FROM lib_books b
     -- The join that was missing. This carried zero references to lib_series, so a book id alone opened a
@@ -190,6 +191,7 @@ function bookDto(r: any) {
     name: r.title,
     number: num,
     numberEnd: end,
+    volumeNumber: r.volume_number == null ? null : Number(r.volume_number),
     media: { pagesCount: r.pages ?? 0, mediaType: 'application/vnd.comicbook+zip', status: 'READY' },
     metadata: { title: r.title, number: numberText(num, end), numberSort: num, summary: '', releaseDate: released },
     // The chapter's own name as its source gave it (lib/library.ts chapterName), null when it had none. NOT

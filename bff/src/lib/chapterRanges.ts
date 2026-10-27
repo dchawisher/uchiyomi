@@ -10,7 +10,9 @@
 //     add's have-sets, the ghost rows, the slow archive's work list, the failure ledger's "it landed";
 //   - the END is how far a reader got who finished the book: what the trackers are told, the run Mihon reads, the
 //     edition chips' "read to", Mark caught up.
-// An admin's number (book_overrides.number, Edit number & title) replaces the file's reading, the range with it: the
+// An explicit volume mapping stores its label, first chapter and last chapter in book_overrides, independently of
+// the filename. It survives scans and applies to raw source-numbered download checks as well as reader queries.
+// An ordinary admin number override replaces the file's reading, the range with it: the
 // book is that one chapter. And a stored end is a range only while it is above the number and at most MAX_RANGE past
 // it, as the parser writes it: a v0.55.1 scan after a rollback rewrites `number` by the first number in the name and
 // never meets number_end, so until v0.55.2's next scan writes both again the pair can say anything.
@@ -21,29 +23,40 @@ import { MAX_RANGE } from './naming';
 import { numKey } from './postingOrder';
 
 /** Is book `b` a range, as its file reads? Never NULL, so `NOT isRange(b)` keeps every single chapter. */
-export const isRange = (b: string): string =>
+const fileIsRange = (b: string): string =>
   `COALESCE(${b}.number_end > ${b}.number AND ${b}.number_end <= ${b}.number + ${MAX_RANGE}, false)`;
 
+// Explicit volume mappings also protect a file from chapter renumbering/stamping, even for a one-chapter volume.
+export const isRange = (b: string): string =>
+  `(${fileIsRange(b)} OR EXISTS (SELECT 1 FROM book_overrides vr WHERE vr.book_id = ${b}.id AND vr.volume_number IS NOT NULL))`;
+
+/** Source-numbered downloads still use raw numbers, except for explicitly mapped volumes. */
+export const rawRangeStart = (b: string): string =>
+  `COALESCE((SELECT vr.number FROM book_overrides vr WHERE vr.book_id = ${b}.id AND vr.volume_number IS NOT NULL), ${b}.number)`;
+
 /** The end of the file's own range, NULL for one chapter: for the readers that compare the RAW number. */
-export const rawRangeEnd = (b: string): string => `(CASE WHEN ${isRange(b)} THEN ${b}.number_end END)`;
+export const rawRangeEnd = (b: string): string =>
+  `COALESCE((SELECT vr.number_end FROM book_overrides vr WHERE vr.book_id = ${b}.id AND vr.volume_number IS NOT NULL),
+    (CASE WHEN ${fileIsRange(b)} THEN ${b}.number_end END))`;
 
 /**
  * The end of book `b`'s range as a reader sees it (`ov` is its LEFT JOINed book_overrides row): NULL for one chapter,
- * and for a range an admin has numbered by hand.
+ * and for a range an admin has numbered as one chapter. Explicit volumes keep their mapped end.
  */
 export const rangeEnd = (b: string, ov: string): string =>
-  `(CASE WHEN ${ov}.number IS NULL AND ${isRange(b)} THEN ${b}.number_end END)`;
+  `(CASE WHEN ${ov}.volume_number IS NOT NULL THEN ${ov}.number_end
+    WHEN ${ov}.number IS NULL AND ${fileIsRange(b)} THEN ${b}.number_end END)`;
 
 /** The last chapter book `b` holds, override-aware: its range's end, else its number. */
 export const lastNumber = (b: string, ov: string): string => `COALESCE(${rangeEnd(b, ov)}, ${ov}.number, ${b}.number)`;
 
 /** Does book `b` hold chapter `num` (an SQL expression)? Its own number, override-aware, or one inside its range. */
 export const holds = (b: string, ov: string, num: string): string =>
-  `(COALESCE(${ov}.number, ${b}.number) = ${num} OR ${num} BETWEEN ${b}.number AND ${rangeEnd(b, ov)})`;
+  `(COALESCE(${ov}.number, ${b}.number) = ${num} OR ${num} BETWEEN COALESCE(${ov}.number, ${b}.number) AND ${rangeEnd(b, ov)})`;
 
 /** holds, by the RAW number: for the readers that compare it (lib/updater.ts says which and why). */
 export const holdsRaw = (b: string, num: string): string =>
-  `(${b}.number = ${num} OR ${num} BETWEEN ${b}.number AND ${rawRangeEnd(b)})`;
+  `(${rawRangeStart(b)} = ${num} OR ${num} BETWEEN ${rawRangeStart(b)} AND ${rawRangeEnd(b)})`;
 
 /** A held book as the JS readers take it: its number, and the end of its range when it is one. */
 export interface HeldBook {

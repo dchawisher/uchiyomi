@@ -383,3 +383,82 @@ test('an add of a series a range file already holds downloads nothing it holds',
   assert.equal(body.folder, SAGA, 'PREMISE: the add met the folder the range file is in');
   assert.deepEqual([body.chapters, body.alreadyHere], [0, 5], 'the add fetches chapters a range file holds');
 });
+
+test('explicit per-volume ranges survive scanning, prevent downloads and drive chapter progress', { skip }, async (t) => {
+  const folder = `${SRC}/Volumes`;
+  for (const f of ['Volume 1.cbz', 'Volume 2.cbz', 'Chapter 17.cbz']) await writeCbz(folder, f);
+  await lib.persistScan();
+  const sid = (await q('SELECT id FROM lib_series WHERE folder = $1', [folder]))[0].id;
+  const rows = await q('SELECT id, file FROM lib_books WHERE series_id = $1', [sid]);
+  const v1 = rows.find((r: any) => r.file.endsWith('Volume 1.cbz')).id;
+  const v2 = rows.find((r: any) => r.file.endsWith('Volume 2.cbz')).id;
+  const { registerAdapter } = await import('../src/lib/sources');
+  const chapters = Array.from({ length: 18 }, (_, i) => ({ number: i + 1, sourceId: `volume-${i + 1}`, title: `Chapter ${i + 1}`, url: `https://example.invalid/${i + 1}` }));
+  registerAdapter({ id: 'rng-volumes', name: 'Volume test', async search() { return []; },
+    async getSeries() { return { sourceId: 'volumes', title: 'Volumes' }; }, async listChapters() { return chapters; },
+    async getPageUrls() { throw new Error('Covered chapters must never download'); }, async latest() { return []; } } as any);
+  await q('UPDATE lib_series SET source_id = $2, source_series_id = $3 WHERE id = $1', [sid, 'rng-volumes', 'volumes']);
+  const edit = (id: string, payload: unknown, headers = H) => app.inject({ method: 'PUT', url: `/api/admin/books/${id}/meta`, headers, payload });
+  const book = async (id: string) => (await app.inject({ method: 'GET', url: `/api/books/${id}`, headers: H })).json();
+  const { haveNumbers } = await import('../src/lib/libraryNumbers');
+
+  await t.test('volume two covers only its explicit chapters, never its filename number', async () => {
+    const r = await edit(v2, { volumeNumber: 2, number: 9, numberEnd: 16, title: 'Second volume' });
+    assert.equal(r.statusCode, 200, r.body);
+    const b = await book(v2);
+    assert.deepEqual([b.volumeNumber, b.number, b.numberEnd], [2, 9, 16]);
+    assert.deepEqual([...new Set(await haveNumbers(sid))].sort((a, b) => a - b), [1, 9, 10, 11, 12, 13, 14, 15, 16, 17]);
+    const { holdsRaw } = await import('../src/lib/chapterRanges');
+    const held = await q(`SELECT n FROM generate_series(1,18) n WHERE EXISTS (SELECT 1 FROM lib_books b WHERE b.id = $1 AND ${holdsRaw('b', 'n')})`, [v2]);
+    assert.deepEqual(held.map((r: any) => r.n), [9, 10, 11, 12, 13, 14, 15, 16]);
+  });
+  await t.test('invalid and incomplete mappings cannot replace a valid range', async () => {
+    for (const payload of [
+      { volumeNumber: 0, number: 9, numberEnd: 16 }, { volumeNumber: 2, number: -1, numberEnd: 16 },
+      { volumeNumber: 2, number: 16, numberEnd: 9 }, { volumeNumber: 2, number: 9, numberEnd: null },
+      { volumeNumber: 2, number: null, numberEnd: 16 }, { volumeNumber: null, numberEnd: 16 },
+      { volumeNumber: 2, number: 9, numberEnd: 1010 },
+    ]) assert.equal((await edit(v2, payload)).statusCode, 400, JSON.stringify(payload));
+    const b = await book(v2);
+    assert.deepEqual([b.volumeNumber, b.number, b.numberEnd], [2, 9, 16]);
+    await assert.rejects(q('UPDATE book_overrides SET number_end = 8 WHERE book_id = $1', [v2]));
+  });
+  await t.test('each volume needs its own mapping; scanner and migration reruns preserve it', async () => {
+    assert.equal((await edit(v1, { volumeNumber: 1, number: 1, numberEnd: 8 })).statusCode, 200);
+    await writeCbz(folder, 'Volume 2.cbz');
+    await lib.persistScan();
+    await (await import('../src/lib/migrate')).migrate();
+    const b = await book(v2);
+    assert.deepEqual([b.volumeNumber, b.number, b.numberEnd, b.metadata.title], [2, 9, 16, 'Second volume']);
+    assert.deepEqual([...new Set(await haveNumbers(sid))].sort((a, b) => a - b), Array.from({ length: 17 }, (_, i) => i + 1));
+  });
+  await t.test('automatic updates and manual fetches do not download covered chapters', async () => {
+    await (await import('../src/lib/updater')).updateSeries(sid, 0);
+    assert.equal(Number((await q('SELECT source_missing FROM lib_series WHERE id = $1', [sid]))[0].source_missing), 1);
+    const r = await app.inject({ method: 'POST', url: '/api/sources/fetch', headers: H, payload: { seriesId: sid, numbers: [2, 9, 12, 16] } });
+    assert.equal(r.statusCode, 409, r.body);
+    assert.deepEqual(r.json().skipped.map((r: any) => [r.number, r.reason]), [[2, 'already_here'], [9, 'already_here'], [12, 'already_here'], [16, 'already_here']]);
+    const { ghostNumbers } = await import('../src/lib/komgaGhosts');
+    assert.deepEqual(await ghostNumbers(sid), [18]);
+  });
+  await t.test('finishing each volume advances chapter progress to that volume end', async () => {
+    const { seriesProgressFor } = await import('../src/lib/trackers');
+    const mark = (id: string, completed: boolean) => app.inject({ method: 'PUT', url: `/api/books/${id}/progress`, headers: H, payload: { page: completed ? 1 : 0, completed, silent: true } });
+    assert.equal((await seriesProgressFor(adminId, sid)).chapters, 0);
+    assert.equal((await mark(v1, true)).statusCode, 200);
+    assert.equal((await seriesProgressFor(adminId, sid)).chapters, 8);
+    assert.equal((await mark(v2, false)).statusCode, 200);
+    assert.equal((await seriesProgressFor(adminId, sid)).chapters, 8);
+    assert.equal((await mark(v2, true)).statusCode, 200);
+    assert.equal((await seriesProgressFor(adminId, sid)).chapters, 16);
+    const mihon = (await app.inject({ method: 'GET', url: `/api/v2/series/${sid}/read-progress/tachiyomi`, headers: { 'x-api-key': komgaKey } })).json();
+    assert.equal(mihon.lastReadContinuousNumberSort, 16);
+  });
+  await t.test('a title-only edit preserves mapping; explicit reset removes it', async () => {
+    assert.equal((await edit(v2, { title: 'New title' })).statusCode, 200);
+    assert.deepEqual([(await book(v2)).volumeNumber, (await book(v2)).numberEnd], [2, 16]);
+    assert.equal((await edit(v2, { number: null, title: null, volumeNumber: null, numberEnd: null })).statusCode, 200);
+    const b = await book(v2);
+    assert.deepEqual([b.volumeNumber, b.number, b.numberEnd], [null, 2, null]);
+  });
+});

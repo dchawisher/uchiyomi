@@ -41,10 +41,10 @@ test('numberText: the range as it is read out, else the number', () => {
 
 test('the SQL fragments carry the same rules', () => {
   // Never NULL, so `NOT isRange(b)` keeps a single chapter (whose number_end IS NULL) rather than dropping it.
-  assert.match(isRange('b'), /^COALESCE\(.*, false\)$/);
+  assert.match(isRange('b'), /COALESCE\(.*, false\)/);
   assert.match(isRange('b'), new RegExp(`b\\.number_end <= b\\.number \\+ ${MAX_RANGE}`));
   // An admin's number replaces the range: the end is read only while there is none.
   assert.match(rangeEnd('b', 'ov'), /ov\.number IS NULL AND/);
   // holds: the override-aware number, or the range.
-  assert.match(holds('b', 'ov', 'l.number'), /^\(COALESCE\(ov\.number, b\.number\) = l\.number OR l\.number BETWEEN b\.number AND /);
+  assert.match(holds('b', 'ov', 'l.number'), /^\(COALESCE\(ov\.number, b\.number\) = l\.number OR l\.number BETWEEN COALESCE\(ov\.number, b\.number\) AND /);
 });

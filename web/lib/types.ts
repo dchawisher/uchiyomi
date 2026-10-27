@@ -323,6 +323,8 @@ export interface Book {
    * `metadata.number` reads "1–7". Null or absent for one chapter. `number` stays the start: the book's place.
    */
   numberEnd?: number | null;
+  /** Explicit volume label; number/numberEnd are its chapter coverage. */
+  volumeNumber?: number | null;
   media: { pagesCount: number; mediaType?: string; status?: string };
   metadata: BookMetadata;
   readProgress?: ReadProgress | null;

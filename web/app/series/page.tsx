@@ -10,7 +10,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, img } from '@/lib/api';
 import { Book, EditionRow, Ghost, Listing, Page, Series, VersionCopy, Versions } from '@/lib/types';
-import { bookCountText, chapterLabel, chapterName, isVolumeName, languageName, relativeTime, relativeTimeShort } from '@/lib/format';
+import { bookCountText, mixedBookCountText, chapterLabel, chapterName, isVolumeName, languageName, relativeTime, relativeTimeShort } from '@/lib/format';
 import { listDownloads, downloadChapter, deleteDownload } from '@/lib/downloads';
 import { applyCover, clearCover } from '@/lib/theme';
 import { Img, Backdrop, SectionTitle, useWideViewport } from '@/components/ui';
@@ -222,18 +222,27 @@ function RenameFolderModal({ id, folder, title, onClose, onSaved }: {
 function ChapterEditModal({ book, onClose, onSaved }: { book: Book; onClose: () => void; onSaved: () => void }) {
   const toast = useToast();
   const [number, setNumber] = useState(String(book.number ?? ''));
+  const [isVolume, setIsVolume] = useState(book.volumeNumber != null);
+  const [volume, setVolume] = useState(String(book.volumeNumber ?? ''));
+  const [end, setEnd] = useState(String(book.numberEnd ?? book.number ?? ''));
   const [title, setTitle] = useState(book.metadata?.title || book.name || '');
   const [busy, setBusy] = useState(false);
   const completed = !!book.readProgress?.completed;
 
   const save = async (reset = false) => {
     const n = reset ? null : Number(number);
-    if (!reset && !Number.isFinite(n)) { toast(tr('Chapter number must be a number'), 'error'); return; }
+    if (!reset && (!number.trim() || !Number.isFinite(n) || n! < 0 || n! > 100000)) { toast(tr('Chapter number must be a number'), 'error'); return; }
+    if (!reset && isVolume && (!volume.trim() || !end.trim() || !Number.isFinite(Number(volume))
+      || Number(volume) <= 0 || Number(volume) > 100000 || !Number.isFinite(Number(end))
+      || Number(end) < n! || Number(end) > 100000 || Number(end) - n! > 1000)) {
+      toast(tr('Enter a volume number and a valid first and last chapter (at most 1000 apart).'), 'error'); return;
+    }
     setBusy(true);
     try {
       const r = await api<{ affectedUsers: number }>(`/api/admin/books/${book.id}/meta`, {
         method: 'PUT',
-        json: reset ? { number: null, title: null } : { number: n, title },
+        json: reset ? { number: null, title: null, volumeNumber: null, numberEnd: null }
+          : { number: n, title, volumeNumber: isVolume ? Number(volume) : null, numberEnd: isVolume ? Number(end) : null },
       });
       toast(r.affectedUsers > 1 ? tr('Saved. {n} readers had finished this chapter.', { n: r.affectedUsers })
         : r.affectedUsers === 1 ? tr('Saved. 1 reader had finished this chapter.') : tr('Saved'), 'success');
@@ -245,11 +254,29 @@ function ChapterEditModal({ book, onClose, onSaved }: { book: Book; onClose: () 
 
   return (
     // The shared Modal (UI refresh), as Add to list: Escape, focus in and back, and clear of a phone's nav bar.
-    <Modal title={tr('Edit chapter')} onClose={onClose}>
-      <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-fog-500">{tr('Chapter number')}</label>
-      <input value={number} onChange={(e) => setNumber(e.target.value)} inputMode="decimal" className={fld} />
-      <label className="mb-1 mt-3 block text-xs font-semibold uppercase tracking-wider text-fog-500">{tr('Title')}</label>
-      <input value={title} onChange={(e) => setTitle(e.target.value)} className={fld} />
+    <Modal title={tr('Edit chapter or volume')} onClose={onClose}>
+      <label htmlFor="book-kind" className="mb-1 block text-xs font-semibold uppercase tracking-wider text-fog-500">{tr('File contains')}</label>
+      <select id="book-kind" value={isVolume ? 'volume' : 'chapter'} onChange={(e) => {
+        const volume = e.target.value === 'volume';
+        if (volume && book.volumeNumber == null) { setNumber(''); setEnd(''); }
+        setIsVolume(volume);
+      }} className={fld}>
+        <option value="chapter">{tr('Chapter')}</option>
+        <option value="volume">{tr('Volume')}</option>
+      </select>
+      {isVolume && <>
+        <label htmlFor="book-volume" className="mb-1 mt-3 block text-xs font-semibold uppercase tracking-wider text-fog-500">{tr('Volume number')}</label>
+        <input id="book-volume" value={volume} onChange={(e) => setVolume(e.target.value)} inputMode="decimal" className={fld} />
+        <p className="mt-2 text-xs leading-relaxed text-fog-400">{tr('Enter the chapters this volume contains. They will not be downloaded again. Finishing the volume advances chapter progress to its last chapter.')}</p>
+      </>}
+      <label htmlFor="book-number" className="mb-1 mt-3 block text-xs font-semibold uppercase tracking-wider text-fog-500">{isVolume ? tr('First chapter') : tr('Chapter number')}</label>
+      <input id="book-number" value={number} onChange={(e) => setNumber(e.target.value)} inputMode="decimal" className={fld} />
+      {isVolume && <>
+        <label htmlFor="book-number-end" className="mb-1 mt-3 block text-xs font-semibold uppercase tracking-wider text-fog-500">{tr('Last chapter')}</label>
+        <input id="book-number-end" value={end} onChange={(e) => setEnd(e.target.value)} inputMode="decimal" className={fld} />
+      </>}
+      <label htmlFor="book-title" className="mb-1 mt-3 block text-xs font-semibold uppercase tracking-wider text-fog-500">{tr('Title')}</label>
+      <input id="book-title" value={title} onChange={(e) => setTitle(e.target.value)} className={fld} />
       {completed && (
         <p className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-[11px] leading-relaxed text-amber-200">
           {tr('You have finished this chapter. Changing its number changes what gets reported to a connected tracker. Progress never moves backwards on its own: if the new number is lower, the tracker keeps the higher one until an admin imports your list again under Admin → Import (From your tracker).')}
@@ -468,7 +495,7 @@ function ChapterRow({ book, downloaded, sourceNames, primarySource, versions, on
     ...(onTalk ? [{ label: talk?.comments ? `${tr('Comments')} · ${talk.comments}` : tr('Comments'), divider: true, hook: 'comments', onSelect: onTalk }] : []),
     ...(onVersions ? [{ label: tr('Versions'), divider: true, onSelect: onVersions }] : []),
     ...(onReplaceFrom ? [{ label: tr('Replace from another source…'), onSelect: onReplaceFrom }] : []),
-    ...(onEdit ? [{ label: tr('Edit number & title'), divider: true, onSelect: onEdit }] : []),
+    ...(onEdit ? [{ label: tr('Edit chapter or volume'), divider: true, onSelect: onEdit }] : []),
     ...(onCopyPath ? [{ label: tr('Copy file path'), divider: !onEdit, onSelect: onCopyPath }] : []),
     ...(onHide ? [{ label: tr('Hide chapter {n}', { n: book.number }), divider: !onEdit && !onCopyPath, hook: 'hide-chapter', onSelect: onHide }] : []),
     ...(onRefetch ? [{ label: tr('Fetch again'), divider: true, onSelect: onRefetch }] : []),
@@ -1566,8 +1593,14 @@ function SeriesInner() {
   // volume-based series (old manga stored as tomes) get "volumes" wording instead of "chapters"
   const mostlyVolumes = useMemo(() => {
     const c = books?.content ?? [];
-    return c.length > 0 && c.filter((b) => isVolumeName(b.name || b.metadata?.title)).length > c.length / 2;
+    return c.length > 0 && c.filter((b) => b.volumeNumber != null || isVolumeName(b.name || b.metadata?.title)).length > c.length / 2;
   }, [books]);
+  const mappedBookCount = useMemo(() => {
+    const c = books?.content ?? [];
+    if (!series || !c.some((b) => b.volumeNumber != null)) return null;
+    const volumes = c.filter((b) => b.volumeNumber != null || isVolumeName(b.name || b.metadata?.title)).length;
+    return mixedBookCountText(series.booksCount, volumes);
+  }, [books, series]);
 
   // shared blocks (rendered once)
   const [deleting, setDeleting] = useState(false);
@@ -1759,7 +1792,7 @@ function SeriesInner() {
   const metaBits: ReactNode[] = [
     author ? <span className="text-fog-300">{tr('by {author}', { author: `\u2068${author}\u2069` })}</span> : null,
     meta?.status ? <span className="capitalize">{statusText(meta.status)}</span> : null,
-    series ? <>{bookCountText(series.booksCount, mostlyVolumes)}</> : null,
+    series ? <>{mappedBookCount ?? bookCountText(series.booksCount, mostlyVolumes)}</> : null,
     // Their numbers, when they do not run 1 to the count (half chapters, a chapter 0, gaps): "149 chapters · Ch. 0–129".
     span ? <>{tr('Ch. {a}–{b}', span)}</> : null,
     (series?.yomi?.unread ?? series?.booksUnreadCount ?? 0) > 0 ? <span className="text-accent">{tr('{n} unread', { n: series!.yomi?.unread ?? series!.booksUnreadCount })}</span> : null,

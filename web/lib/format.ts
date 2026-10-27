@@ -37,11 +37,18 @@ export function bookCountText(n: number, volumes = false): string {
   return n === 1 ? tr('1 chapter') : tr('{n} chapters', { n });
 }
 
-export function chapterLabel(b: { metadata?: { number?: string; title?: string }; number?: number; numberEnd?: number | null; name?: string }): string {
+/** Counts of physical files in a collection containing explicitly mapped volumes. */
+export function mixedBookCountText(total: number, volumes: number): string {
+  const chapters = Math.max(0, total - volumes);
+  return [volumes > 0 ? bookCountText(volumes, true) : '', chapters > 0 ? bookCountText(chapters) : ''].filter(Boolean).join(' · ') || bookCountText(0);
+}
+
+export function chapterLabel(b: { metadata?: { number?: string; title?: string }; number?: number; numberEnd?: number | null; volumeNumber?: number | null; name?: string }): string {
   const raw = b.number != null && b.numberEnd != null && b.numberEnd > b.number
     ? `${b.number}–${b.numberEnd}`
     : b.number != null ? String(b.number) : '';
   const n = b.metadata?.number ?? raw;
+  if (b.volumeNumber != null) return `${tr('Vol. {n}', { n: b.volumeNumber })} · ${tr('Ch. {n}', { n: raw })}`;
   // Through tr() (v0.55.7): "Ch. 12" was English on every chapter row, in the reader's list and on the edition chips,
   // in a file that has said "الفصل {n}" for "Ch. {n}" since the gap ranges.
   if (n) return isVolumeName(b.name || b.metadata?.title) ? tr('Vol. {n}', { n }) : tr('Ch. {n}', { n });
