@@ -80,8 +80,8 @@ test('the add dialog wires the switch into the request, the counts and the other
   // Reintroduce by counting `detail.count` in the count line: "Keep the source's numbers" still reads 226.
   assert.match(src, /\{view\.count\} \{view\.count === 1 \? tr\('chapter'\) : tr\('chapters'\)\}/, 'the count line does not follow the switch');
   assert.match(src, /\{view!\.count > 0 && <option value="all">\{tr\('All \(\{n\}\)', \{ n: view!\.count \}\)\}<\/option>\}/, 'All (n) does not follow the switch');
-  assert.match(src, /const presets = CHAPTER_PRESETS\.filter\(\(n\) => view && n < view\.count\);/, 'the presets do not follow the switch');
-  assert.match(src, /\{detail\.numbering && view!\.offer && \(\s*<AddNumberingNotice n=\{detail\.numbering\}/, 'the notice is not rendered from detail.numbering');
+  assert.match(src, /const presets = CHAPTER_PRESETS\.filter\(\(n\) => view && view\.count > 0 && \(n === 10 \|\| n < view\.count\)\);/, 'the presets do not follow the switch');
+  assert.match(src, /\{!detailsOnly && detail\.numbering && view!\.offer && \(\s*<AddNumberingNotice n=\{detail\.numbering\}/, 'the notice is not rendered from detail.numbering');
   // The switch belongs to the pick it was flipped on: another source starts from its own verdict.
   assert.match(src, /const flipNumbering = !!pickKey && flippedFor === pickKey;/, 'the switch outlives the source it was flipped on');
   // Other sources cannot line up with posts numbered 1..K: no switch, one line, and nothing sent.

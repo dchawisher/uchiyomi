@@ -35,6 +35,30 @@ export function useAdultFilterConfigured(): boolean {
   return data?.configured === true;
 }
 
+/** Permission is independent of whether any adult tags or libraries have been configured. */
+export function useCanShowAdult(): boolean {
+  const { data } = useQuery({
+    queryKey: ['adult-filter'],
+    queryFn: () => api<{ configured: boolean; canShowAdult: boolean }>('/api/adult-filter'),
+    staleTime: 5 * 60 * 1000,
+  });
+  return data?.canShowAdult === true;
+}
+
+export function AdultBadge() {
+  const on = useAdultShown();
+  const allowed = useCanShowAdult();
+  return <AdultStatusBadge shown={on} allowed={allowed} />;
+}
+
+export function AdultStatusBadge({ shown, allowed }: { shown: boolean; allowed: boolean }) {
+  return shown && allowed ? (
+    <span data-adult-badge className="pointer-events-none absolute -bottom-1 -end-2 rounded bg-accent px-1 text-[10px] font-bold leading-4 text-black" aria-label={tr('18+ titles are showing.')}>
+      {tr('18+')}
+    </span>
+  ) : null;
+}
+
 /** Whether 18+ is currently revealed, kept in sync with the cookie another tab may have changed. */
 export function useAdultShown(): boolean {
   // Starts false and is corrected after mount: this app is a static export, so the first render happens at
@@ -89,33 +113,5 @@ export function AdultToggle({ className = '', alsoWhen = false }: { className?: 
     >
       {tr('Show 18+')}
     </button>
-  );
-}
-
-/**
- * Above every page while 18+ is revealed (#255, @Squeaks72): what is on, and Hide 18+ -- the way off from a page with
- * no Show 18+ chip of its own (a series, search, history), where the reveal used to stay on with no sign of it until
- * the browser closed. Incognito reading's slot and look (components/IncognitoBanner.tsx), a squared key, and only while
- * the reveal reveals something to this account: an 18+ library it holds, or the admin's 18+ filter naming a genre or
- * source it meets. A reveal left on after the 18+ library went, or on an account capped below 18, shows nothing,
- * because nothing is showing. The Show 18+ chips stay two-way.
- */
-export function AdultBanner() {
-  // The reveal first, so a page with it off asks for nothing.
-  return useAdultShown() ? <AdultBannerShown /> : null;
-}
-
-/** The banner once the reveal is on (exported for its test, adultBanner.test.ts). */
-export function AdultBannerShown() {
-  const qc = useQueryClient();
-  const { data: libs } = useLibraries();
-  const filter = useAdultFilterConfigured();
-  if (!(libs ?? []).some((l) => l.adult) && !filter) return null;
-  return (
-    <div data-adult-banner className="flex items-center justify-center gap-2 bg-ink-800 px-4 py-1.5 text-[11px] text-fog-300 lg:ps-[calc(var(--rail-w)+1rem)]">
-      <span className="min-w-0">{tr('18+ titles are showing.')}</span>
-      <button type="button" onClick={() => { setAdultShown(false); qc.invalidateQueries(); }}
-        className="btn-key h-6 shrink-0 px-2 text-[11px]" data-adult-off>{tr('Hide 18+')}</button>
-    </div>
   );
 }

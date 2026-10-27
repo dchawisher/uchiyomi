@@ -1596,6 +1596,7 @@ function ReaderInner() {
     else if (action === 'fullscreen') toggleFullscreen();
     else if (action === 'menu') setChrome((c) => !c);
     else if (action === 'focus') toggleFocus();
+    else if (action === 'spreadShift' && prefs.mode === 'paged' && prefs.spread) applyShift(!spreadShift);
     else if (action === 'exit') back();
   };
   const performRef = useRef(perform);

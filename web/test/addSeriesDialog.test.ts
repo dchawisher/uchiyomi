@@ -114,11 +114,11 @@ test('the chapter pick is derived from the detail, never set when it lands', () 
   // `pickChoice` is what the person chose or null; the default comes from the detail at render time. Set
   // in an effect when the detail landed, a `count === 0` listing rendered one frame with `all` selected and
   // no such option, and picking another source raced the arrival of the new detail. Reintroduce by
-  // `useState<ChapterPick>('all')` plus `setPick(d.count === 0 ? 'none' : 'all')` on arrival: "the pick is
+  // `useState<ChapterPick>('all')` plus `setPick(d.count === 0 ? 'none' : 'first:10')` on arrival: "the pick is
   // set when the detail lands" fails.
   const src = code(read(DIALOG));
   assert.match(src, /const \[pickChoice, setPickChoice\] = useState<ChapterPick \| null>\(null\);/, 'the chapter choice is not nullable state');
-  assert.match(src, /const pick: ChapterPick = pickChoice \?\? \(detail && detail\.count === 0 \? 'none' : 'all'\);/, 'the pick is not derived from the detail');
+  assert.match(src, /const pick: ChapterPick = pickChoice \?\? \(detail && detail\.count === 0 \? 'none' : 'first:10'\);/, 'the pick is not derived from the detail');
   assert.doesNotMatch(src, /setPick\(/, 'the pick is set when the detail lands');
   assert.match(src, /onChange=\{\(e\) => setPickChoice\(e\.target\.value as ChapterPick\)\}/, 'the select does not write the choice');
 });
@@ -214,7 +214,7 @@ test('a provider in a language the library does not hold the title in is added a
   const src = code(read(DIALOG));
   assert.match(src, /const asEdition = !!held && \(editionFor\?\.key === pickKey \? editionFor\.on : !!edSeed \|\| picked\?\.inLibrary === false\);/,
     'the edition block does not open for a provider in a new language');
-  assert.match(src, /\{asEdition && held && \(\s*<EditionNotice /, 'the edition block is not rendered');
+  assert.match(src, /\{!detailsOnly && asEdition && held && \(\s*<EditionNotice /, 'the edition block is not rendered');
   assert.match(src, /const editionBody = asEdition && held && !force\s*\? \{ of: held\.of, \.\.\.\(edLang \? \{ lang: edLang \} : \{\}\), \.\.\.\(askOfLang && ofLang \? \{ ofLang \} : \{\}\) \} : undefined;/,
     'a different series still goes as an edition, or the edition does not name its series and language');
   assert.match(src, /\.\.\.\(editionBody \? \{ edition: editionBody \} : \{\}\)/, 'the add does not carry the edition');

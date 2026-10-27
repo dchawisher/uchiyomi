@@ -36,7 +36,7 @@ test('it offers only switches Settings already has, from the same hooks', () => 
   assert.equal((menu.match(/<SwitchRow /g) ?? []).length, 2, 'Incognito and Reduce effects, plus the conditional Show 18+ row');
   // 18+ renders nothing for an account with no 18+ library or filter, as AdultToggle does.
   assert.match(menu, /showAdult && \(/);
-  assert.match(menu, /\.some\(\(l\) => l\.adult\)/);
+  assert.match(menu, /const showAdult = useCanShowAdult\(\);/);
   assert.match(menu, /href="\/profile\/"/, 'the Profile route stays reachable');
   assert.match(menu, /\{tr\('Sign out'\)\}/);
   assert.match(menu, /!isDesktop\(\) && <button/, 'no Sign out on the desktop app');

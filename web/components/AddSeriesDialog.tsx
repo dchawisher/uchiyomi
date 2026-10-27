@@ -193,7 +193,7 @@ const looksCss = (s: string) =>
  * The server returns `folder`, which is the key into `/api/sources/jobs`, so the dialog can stay open and
  * show the real download rather than dismissing itself and hoping.
  */
-export function AddSeriesDialog({ seed, sources, mayFollow, onClose, onAdded }: {
+export function AddSeriesDialog({ seed, sources, mayFollow, detailsFirst = false, onClose, onAdded }: {
   seed: AddSeed;
   /** Which sources to look in. Unscoped, one tap is an outbound request to every source on the server. */
   sources: string[];
@@ -203,12 +203,14 @@ export function AddSeriesDialog({ seed, sources, mayFollow, onClose, onAdded }: 
    * it; for them the switch is not rendered and no `alsoFollow` is sent, whatever the device remembers.
    */
   mayFollow: boolean;
+  detailsFirst?: boolean;
   onClose: () => void;
   onAdded: (r: { title: string; folder: string; chapters: number }) => void;
 }) {
   const toast = useToast();
   const router = useRouter();
   const qc = useQueryClient();
+  const [detailsOnly, setDetailsOnly] = useState(detailsFirst);
 
   const [providers, setProviders] = useState<Provider[] | null>(seed.kind === 'group' ? seed.providers : null);
   const [picked, setPicked] = useState<Provider | null>(
@@ -379,7 +381,7 @@ export function AddSeriesDialog({ seed, sources, mayFollow, onClose, onAdded }: 
   const detail = detailQ.data;
   // The count, range and presets the dialog shows are the numbering the add will use (lib/numbering.ts).
   const view = detail ? addNumberingView(detail, flipNumbering) : null;
-  const pick: ChapterPick = pickChoice ?? (detail && detail.count === 0 ? 'none' : 'all');
+  const pick: ChapterPick = pickChoice ?? (detail && detail.count === 0 ? 'none' : 'first:10');
 
   // The pre-warm: a group with a choice to make looks up its first two providers as it opens, so by the
   // time a person has read the list and tapped one, the detail is already in the cache (or in flight, and
@@ -718,7 +720,7 @@ export function AddSeriesDialog({ seed, sources, mayFollow, onClose, onAdded }: 
 
   // ---------------------------------------------------------------- options
   const summary = detail?.summary && !looksCss(detail.summary) ? detail.summary : '';
-  const presets = CHAPTER_PRESETS.filter((n) => view && n < view.count);
+  const presets = CHAPTER_PRESETS.filter((n) => view && view.count > 0 && (n === 10 || n < view.count));
   // The picked provider's own cover until the detail lands, then the detail's: the same picture nearly
   // always, so nothing jumps, and the body paints at once instead of behind a bare "Loading…".
   const coverUrl = detail?.coverUrl ?? picked.coverUrl;
@@ -766,14 +768,14 @@ export function AddSeriesDialog({ seed, sources, mayFollow, onClose, onAdded }: 
           )}
           {/* A new language for a title the library has (v0.52.0): before the chapters, because it changes what the
               add is. Rendered from the pick, like the switches: nothing in it waits for the chapter list. */}
-          {asEdition && held && (
+          {!detailsOnly && asEdition && held && (
             <EditionNotice title={title} held={heldLangs} lang={edLang} onLang={(l) => setEdLangFor({ key: pickKey, lang: l })}
               askOfLang={askOfLang} ofLang={ofLang} onOfLang={setOfLangChoice} refusal={edRefusal} busy={adding}
               onOpen={(sid) => { qc.invalidateQueries({ queryKey: ['library'] }); router.push(`/series/?id=${encodeURIComponent(sid)}`); }}
               onAlone={() => { setEditionFor({ key: pickKey, on: false }); void add(true); }} />
           )}
           {detail && (<>
-            {detail.numbering && view!.offer && (
+            {!detailsOnly && detail.numbering && view!.offer && (
               <AddNumberingNotice n={detail.numbering} count={detail.count} view={view!} flipped={flipNumbering} sourceName={picked.name || picked.source}
                 admin={isAdmin} onFlip={(v) => { setFlippedFor(v ? pickKey : null); setPickChoice(null); }} />
             )}
@@ -819,10 +821,12 @@ export function AddSeriesDialog({ seed, sources, mayFollow, onClose, onAdded }: 
               </div>
             )}
             {detail.genres.length > 0 && (
-              <p className="mt-1 line-clamp-1 text-[11px] text-fog-500">{detail.genres.slice(0, 4).join(' · ')}</p>
+              <p className="mt-1 text-[11px] text-fog-500">{detail.genres.join(' · ')}</p>
             )}
-            {summary && <p className="mt-2 line-clamp-4 text-xs leading-relaxed text-fog-400">{summary}</p>}
+            {detail.status && <p className="mt-1 text-xs text-fog-400">{detail.status}</p>}
+            {summary && <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-fog-300">{summary}</p>}
 
+            {!detailsOnly && <>
             {/* "Fetch now", not "download": the chapters land on the server, and the server side of the app
                 is called fetching everywhere else. With nothing listed, "Nothing yet" is the only option that
                 can succeed, so it is the only one offered. */}
@@ -855,8 +859,10 @@ export function AddSeriesDialog({ seed, sources, mayFollow, onClose, onAdded }: 
                 </p>
               </div>
             )}
+            </>}
           </>)}
 
+          {!detailsOnly && <>
           {/* The switches depend on nothing the detail brings, so they are there from the first paint. */}
           <div className="mt-3 flex items-center justify-between gap-3">
             <span className="text-sm text-fog-200">{tr('Auto-update new chapters')}</span>
@@ -921,6 +927,12 @@ export function AddSeriesDialog({ seed, sources, mayFollow, onClose, onAdded }: 
               : asEdition ? (edLang ? tr('Add the {language} edition', { language: languageName(edLang) }) : tr('Choose its language'))
               : dup ? tr('Add anyway') : tr('Add to library')}
           </button>
+          </>}
+          {detailsOnly && (
+            <button type="button" onClick={() => setDetailsOnly(false)} className="btn-accent mt-4 w-full py-2.5 text-sm">
+              {tr('Add to library')}
+            </button>
+          )}
           {/* Whether a title is worth keeping is usually one chapter's worth of question; this answers it and
               leaves nothing behind. Every source, extensions included: the server fetches the pages itself. */}
           {picked && (
@@ -939,7 +951,7 @@ export function AddSeriesDialog({ seed, sources, mayFollow, onClose, onAdded }: 
           title={picked.title || title}
           onClose={() => setPreviewing(false)}
           canAdd={!adding && !!detail && !needsLang}
-          onAdd={() => { if (adding || !detail || needsLang) return; setPreviewing(false); void add(!!dup && !asEdition); }}
+          onAdd={() => { if (adding || !detail || needsLang) return; setPreviewing(false); if (detailsOnly) setDetailsOnly(false); else void add(!!dup && !asEdition); }}
         />
       )}
     </Modal>

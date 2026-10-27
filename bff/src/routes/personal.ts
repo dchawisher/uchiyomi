@@ -368,7 +368,7 @@ export default async function personalRoutes(app: FastifyInstance) {
   app.put('/api/ratings/:seriesId', async (req) => {
     const uid = userIdOf(req);
     const { seriesId } = req.params as { seriesId: string };
-    const { stars } = z.object({ stars: z.number().int().min(1).max(5) }).parse(req.body);
+    const { stars } = z.object({ stars: z.number().min(0.5).max(5).multipleOf(0.5) }).parse(req.body);
     await q(
       `INSERT INTO ratings (user_id, series_id, stars) VALUES ($1, $2, $3)
        ON CONFLICT (user_id, series_id) DO UPDATE SET stars = EXCLUDED.stars, updated_at = now()`,

@@ -20,7 +20,6 @@ import { t as tr } from '@/lib/i18n';
 import { desktopShell, isDesktop } from '@/lib/desktop';
 import { useServerDownloads } from '@/lib/useServerDownloads';
 import { IncognitoBanner, useIncognito } from './IncognitoBanner';
-import { AdultBanner } from './AdultToggle';
 import { usePrefetchSeriesOnClick } from '@/lib/seriesPrefetch';
 import { scrollMemory } from '@/lib/scrollMemory';
 
@@ -142,7 +141,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="banner-stack" data-banner-stack>
         {status === 'offline' && <OfflineBanner name={user?.displayName || ''} />}
         {status === 'authed' && <IncognitoBanner />}
-        {status === 'authed' && <AdultBanner />}
         {status === 'authed' && <HealthBanner />}
         {status === 'authed' && <TrackerAlert />}
       </div>

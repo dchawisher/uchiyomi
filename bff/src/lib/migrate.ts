@@ -2429,6 +2429,17 @@ const DATA_MIGRATIONS: { id: string; run: (c: PoolClient) => Promise<void> }[] =
     id: BACKUP_SEED_MIGRATION,
     run: seedBackupExtensions,
   },
+  {
+    id: 'hawisher-001-half-stars-and-source-languages',
+    run: async (c) => {
+      // double precision is returned as a JS number by pg; numeric would turn ratings into strings.
+      await c.query(`ALTER TABLE ratings DROP CONSTRAINT ratings_stars_check;
+        ALTER TABLE ratings ALTER COLUMN stars TYPE double precision;
+        ALTER TABLE ratings ADD CONSTRAINT ratings_stars_check
+          CHECK (stars BETWEEN 0.5 AND 5 AND stars * 2 = floor(stars * 2));
+        ALTER TABLE server_settings ADD COLUMN IF NOT EXISTS enabled_langs jsonb NOT NULL DEFAULT '[]'::jsonb;`);
+    },
+  },
 ];
 
 export async function migrate(): Promise<void> {

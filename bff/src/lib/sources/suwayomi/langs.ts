@@ -1,15 +1,13 @@
-// Which extension languages the operator reads, and the bulk switch that acts on it.
-//
-// Installing an extension switches on every source it provides, and a multi-language extension provides
-// one per language -- thirty sources in languages nobody in the household reads, each of them a fan-out
-// target for cross-source search and a step towards the SUWAYOMI_MAX_SOURCES cap (issue #38). The fix is a
-// standing instruction, not a one-off: hiding a language turns its sources off now AND keeps them off when
-// the next extension is installed. The per-language rows with one Hide/Show button, rather than a source
-// list to comb through, are the layout contributor PR #39 proposed.
-//
-// Pure database helpers. Nothing here talks to the engine, so the rule is testable without one.
+// One default source per extension; explicit language choices apply to future installs.
+// Per-source choices do not change the language defaults, and extension updates retain existing switches.
 import { q, tx } from '../../db';
 import { visibleToAll } from '../../visibility';
+import { defaultExtensionSources } from './defaultSources';
+
+async function preferredLanguages(): Promise<string[]> {
+  const rows = await q<{ enabled_langs: string[] }>('SELECT enabled_langs FROM server_settings WHERE id = 1');
+  return rows[0]?.enabled_langs ?? [];
+}
 
 type Run = <R = any>(text: string, params?: any[]) => Promise<R[]>;
 
@@ -56,39 +54,45 @@ export async function setSourcesEnabled({ ids = [], langs = [], enabled }: BulkA
     if (langs.length) {
       hidden = enabled ? hidden.filter((l) => !langs.includes(l)) : [...new Set([...hidden, ...langs])];
       await qq('UPDATE server_settings SET hidden_langs = $1::jsonb WHERE id = 1', [JSON.stringify(hidden)]);
+      const rows = await qq<{ enabled_langs: string[] }>('SELECT enabled_langs FROM server_settings WHERE id = 1');
+      const previous = rows[0]?.enabled_langs ?? [];
+      const preferred = enabled ? [...new Set([...previous, ...langs])] : previous.filter((l) => !langs.includes(l));
+      await qq('UPDATE server_settings SET enabled_langs = $1::jsonb WHERE id = 1', [JSON.stringify(preferred)]);
     }
     return { changed: flipped.length, hiddenLangs: hidden };
   });
 }
 
 /**
- * Record the sources an extension provides, switched on unless their language is hidden (or `enable` is
- * false, on uninstall). This is the install loop that used to live in the route, moved here so the hidden
- * rule has one home and one test.
+ * Record an extension's sources using the one-source default plus explicitly preferred languages.
+ * Updates preserve existing switches; uninstall switches everything off.
  */
 export async function adoptExtensionSources(
   provided: Array<{ id: string; name: string; lang: string | null; nsfw?: boolean }>,
   enable: boolean,
+  preserveExisting = false,
 ): Promise<{ on: number; hidden: number }> {
   const hidden = new Set(enable ? await getHiddenLangs() : []);
+  const preferred = enable ? await preferredLanguages() : [];
+  const selected = defaultExtensionSources(provided, hidden, preferred);
   let on = 0;
   let left = 0;
   for (const s of provided) {
-    const want = enable && !(s.lang && hidden.has(s.lang));
-    if (want) on++;
-    else if (enable) left++;
-    await q(
+    const want = enable && selected.has(s.id);
+    const rows = await q<{ enabled: boolean }>(
       `INSERT INTO suwayomi_sources (source_id, name, lang, nsfw, enabled) VALUES ($1,$2,$3,$4,$5)
-       ON CONFLICT (source_id) DO UPDATE SET enabled = EXCLUDED.enabled, name = EXCLUDED.name,
-         lang = EXCLUDED.lang, nsfw = EXCLUDED.nsfw`,
-      [s.id, s.name, s.lang, !!s.nsfw, want],
-    ).catch(() => {});
+       ON CONFLICT (source_id) DO UPDATE SET enabled = CASE WHEN $6 THEN suwayomi_sources.enabled ELSE EXCLUDED.enabled END, name = EXCLUDED.name,
+         lang = EXCLUDED.lang, nsfw = EXCLUDED.nsfw RETURNING enabled`,
+      [s.id, s.name, s.lang, !!s.nsfw, want, enable && preserveExisting],
+    );
+    if (rows[0]?.enabled) on++;
+    else if (enable) left++;
   }
   return { on, hidden: left };
 }
 
 /**
- * "Turn on its sources" (v0.53.0): every source of an installed extension switched on, except a hidden language's
+ * "Turn on its sources": enable the default source and explicitly preferred languages, except hidden languages.
  * -- the install's own rule, for an extension installed without it: in the engine's own page, which left it showing
  * as installed with every source off, and Remove then Add again the only way to switch them on (discussion #121).
  * Unlike adoptExtensionSources it never switches one OFF: a source in a hidden language that someone turned on by
@@ -98,10 +102,11 @@ export async function turnOnExtensionSources(
   provided: Array<{ id: string; name: string; lang: string | null; nsfw?: boolean }>,
 ): Promise<{ on: number; hidden: number }> {
   const hidden = new Set(await getHiddenLangs());
+  const selected = defaultExtensionSources(provided, hidden, await preferredLanguages());
   let on = 0;
   let left = 0;
   for (const s of provided) {
-    const want = !(s.lang && hidden.has(s.lang));
+    const want = selected.has(s.id);
     const rows = await q<{ enabled: boolean }>(
       `INSERT INTO suwayomi_sources (source_id, name, lang, nsfw, enabled) VALUES ($1,$2,$3,$4,$5)
        ON CONFLICT (source_id) DO UPDATE SET enabled = suwayomi_sources.enabled OR EXCLUDED.enabled,

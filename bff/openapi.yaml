@@ -1614,8 +1614,9 @@ paths:
       description: >-
         `configured` is true when Admin → Settings → 18+ filter lists at least one genre or source
         (adult_genres / adult_sources), i.e. when "Show 18+" would reveal something even on an install with
-        no library rated 18+. Only the flag is returned, never the lists. Always false for an account whose
-        age limit is below 18, which is never offered the reveal. Does not depend on `adult`.
+        no library rated 18+. `canShowAdult` independently reports whether the account has no age cap or
+        a cap of at least 18; clients should use it to offer the profile reveal control, even with no configured
+        tags or libraries. Both flags are false below age 18. The lists are never returned. Does not depend on `adult`.
       security:
         - bearer: []
       responses:
@@ -1625,9 +1626,11 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [configured]
+                required: [configured, canShowAdult]
                 properties:
                   configured:
+                    type: boolean
+                  canShowAdult:
                     type: boolean
         "401":
           description: Not authenticated
@@ -5379,7 +5382,10 @@ paths:
               type: object
               properties:
                 stars:
-                  type: integer
+                  type: number
+                  minimum: 0.5
+                  maximum: 5
+                  multipleOf: 0.5
       security:
         - bearer: []
       responses:

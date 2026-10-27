@@ -1,7 +1,9 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
+import { AdultBadge } from './AdultToggle';
+import { QuickSettingsSheet } from './ProfileMenu';
 import { motion } from 'framer-motion';
 import { IcHome, IcGrid, IcSearch, IcDownload, IcUser, IcPlus } from './icons';
 import { useAuth, canDownload } from '@/lib/auth';
@@ -27,6 +29,7 @@ const items = [
 ];
 
 export function BottomNav() {
+  const [quickOpen, setQuickOpen] = useState(false);
   const path = usePathname();
   const { user, status } = useAuth();
   // On the notices' layer stack (lib/layers.ts): with the nav up, a notice sits above it rather than under it,
@@ -48,7 +51,7 @@ export function BottomNav() {
   // Uchiyomi Desktop has no Offline tab: the chapters are already on this disk (lib/desktop.ts).
   const shown = isDesktop() ? allowed.filter((i) => !(DESKTOP_HIDDEN.navHrefs as readonly string[]).includes(i.href)) : allowed;
   return (
-    <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 lg:hidden">
+    <><nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 lg:hidden">
       <div className="mx-auto max-w-2xl px-4 pb-2">
         <div ref={barRef} className="glass grad-border flex items-center justify-around rounded-3xl px-2 py-1.5 shadow-lift">
           {shown.map(({ href, label, Icon, match }) => {
@@ -57,7 +60,13 @@ export function BottomNav() {
             const ringed = href === '/library' && ring.show;
             return (
               <Link key={href} href={href} aria-disabled={dead || undefined}
-                onClick={dead ? (e) => e.preventDefault() : undefined}
+                aria-haspopup={href === '/profile' ? 'dialog' : undefined}
+                onClick={(e) => {
+                  if (dead) e.preventDefault();
+                  else if (href === '/profile' && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+                    e.preventDefault(); setQuickOpen(true);
+                  }
+                }}
                 aria-label={ringed && ring.label ? `${tr(label)} · ${ring.label}` : undefined}
                 className={`group relative flex flex-1 flex-col items-center gap-1 py-2${dead ? ' pointer-events-none opacity-35' : ''}`}>
                 {active && (
@@ -65,6 +74,7 @@ export function BottomNav() {
                 )}
                 <span className={`relative z-10 transition ${active ? 'text-accent' : 'text-fog-500 group-active:text-fog-300'}`}>
                   {ringed ? <LibraryTabIcon ring={ring}><Icon width={22} height={22} /></LibraryTabIcon> : <Icon width={22} height={22} />}
+                  {href === '/profile' && <AdultBadge />}
                 </span>
                 <span className={`relative z-10 whitespace-nowrap text-[10px] font-medium ${active ? 'text-accent' : 'text-fog-500'}`}>{tr(label)}</span>
               </Link>
@@ -73,5 +83,6 @@ export function BottomNav() {
         </div>
       </div>
     </nav>
+    {quickOpen && <QuickSettingsSheet onClose={() => setQuickOpen(false)} />}</>
   );
 }

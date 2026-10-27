@@ -12,7 +12,7 @@ import { openInConsole } from '@/lib/consoleOnScreen';
 import { useReduceEffects } from '@/lib/useReduceEffects';
 import { Avatar } from './Avatar';
 import { useIncognito } from './IncognitoBanner';
-import { useLibraries, useAdultShown, useAdultFilterConfigured } from './AdultToggle';
+import { AdultBadge, useAdultShown, useCanShowAdult } from './AdultToggle';
 import { Row, SwitchRow } from './settings';
 import { Switch } from './Switch';
 import { OnBody, Sheet, useRtl } from './ui';
@@ -20,18 +20,16 @@ import { OnBody, Sheet, useRtl } from './ui';
 /**
  * The quick settings behind the profile photo: the switches reached for most, each one the SAME state as its row in
  * Profile -> Settings (the same hooks and the same endpoint), so flipping one here moves the other there.
- * Show 18+ is the session's reveal (lib/adult.ts) and, as AdultToggle does, renders nothing for an account
- * with no 18+ library or filter to reveal.
+ * Show 18+ is the session's reveal (lib/adult.ts). Its availability follows the account's age permission,
+ * independently of the server's tags or libraries.
  */
 export function QuickSettings({ onClose }: { onClose: () => void }) {
   const { user, logout } = useAuth();
   const qc = useQueryClient();
   const incognito = useIncognito();
   const [reduceEffects, saveReduceEffects] = useReduceEffects();
-  const { data: libs } = useLibraries();
-  const filterConfigured = useAdultFilterConfigured();
   const adultOn = useAdultShown();
-  const showAdult = filterConfigured || (libs ?? []).some((l) => l.adult);
+  const showAdult = useCanShowAdult();
   const link = 'rounded-lg px-2 py-1.5 text-sm text-fog-200 hover:bg-ink-800/70 hover:text-fog-50';
   const router = useRouter();
   /**
@@ -113,8 +111,9 @@ export function ProfileMenu({ active }: { active: boolean }) {
     <>
       <button ref={btn} type="button" aria-label={tr('You')} title={user?.displayName} aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined}
         onClick={() => setOpen((o) => !o)}
-        className={`shrink-0 grid h-10 w-10 place-items-center rounded-full transition hover:opacity-80 ${active ? 'ring-2 ring-accent ring-offset-2 ring-offset-ink-950' : ''}`}>
+        className={`shrink-0 grid h-10 w-10 place-items-center rounded-full relative transition hover:opacity-80 ${active ? 'ring-2 ring-accent ring-offset-2 ring-offset-ink-950' : ''}`}>
         <Avatar avatar={user?.avatar} size={40} />
+        <AdultBadge />
       </button>
       {open && (
         <OnBody>

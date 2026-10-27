@@ -67,16 +67,15 @@ export function useExtensionActions() {
     const name = `⁨${e.name}⁩`;
     try {
       const r = await api<{ sources: number; on?: number; hidden?: number }>(`/api/admin/extensions/catalog/${encodeURIComponent(e.pkgName)}`, { json: { action } });
-      const leftOff = !r.hidden ? ''
-        : r.hidden === 1 ? tr('1 source left off (hidden languages)') : tr('{n} sources left off (hidden languages)', { n: r.hidden });
+      const ready = r.on ?? r.sources;
       const said = action === 'uninstall' ? tr('Removed {name}', { name })
         : action === 'update' ? tr('Updated {name}', { name })
         : action === 'enable'
           ? (r.on === 1 ? tr('Turned on {name} — 1 source ready to search', { name }) : tr('Turned on {name} — {n} sources ready to search', { name, n: r.on ?? 0 }))
-          : r.sources === 1 ? tr('Added {name} — 1 source ready to search', { name })
-          : r.sources ? tr('Added {name} — {n} sources ready to search', { name, n: r.sources })
+          : ready === 1 ? tr('Added {name} — 1 source ready to search', { name })
+          : ready ? tr('Added {name} — {n} sources ready to search', { name, n: ready })
           : tr('Added {name}', { name });
-      toast(leftOff ? `${said} · ${leftOff}` : said, 'success');
+      toast(said, 'success');
       await refreshAll();
       return r;
     } catch (err) {

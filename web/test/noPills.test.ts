@@ -246,7 +246,7 @@ const SLICES: [string, string, string, string][] = [
   ['app/admin/page.tsx', 'Members: the age limit\'s opener', 'function AgeCap(', '{open && ('],
   ['app/admin/page.tsx', 'Members: the libraries\' opener', 'function LibraryAccess(', '{open && ('],
   // v0.70.0 (#255): the 18+ line above every page and its Hide 18+ key, beside the Show 18+ chip, a filter that stays.
-  ['components/AdultToggle.tsx', '18+: the banner', 'export function AdultBanner(', ''],
+  ['components/AdultToggle.tsx', '18+: the badge', 'export function AdultStatusBadge(', 'export function useAdultShown('],
   // #243: Add or move source -- its footer's keys (Cancel, Add as extra source, Move here, Attach anyway) and the squared
   // markers of a source the series already uses, beside the search term's chips and the source picker, which stay; and in
   // the Sources sheet, the main source's detach question and the row of keys that opens it all.

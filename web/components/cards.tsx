@@ -8,7 +8,7 @@ import { codeLabel, libraryCaption } from '@/lib/editions';
 import { deviceId, shownDeviceName } from '@/lib/device';
 import { coverTriplet } from '@/lib/theme';
 import { CARD_W, Img } from './ui';
-import { IcHeart, IcMore, IcPlay, IcPlus, IcStar, IcUsers, IcWifiOff } from './icons';
+import { IcHeart, IcInfo, IcMore, IcPlay, IcPlus, IcStar, IcUsers, IcWifiOff } from './icons';
 import { SourceIcon } from './SourcePicker';
 import { ProgressRing } from './ProgressRing';
 import { iconStack, type StackSource } from '@/lib/sourceGroups';
@@ -536,7 +536,7 @@ export interface SourceItem {
  * Chrome is `SeriesTile`'s, deliberately, so the things you own and the things you could own read as one
  * system rather than as two grids that happen to be adjacent.
  */
-export function SourceCard({ item, providers, onAdd, eager }: {
+export function SourceCard({ item, providers, onAdd, eager, details = false }: {
   item: SourceItem;
   /**
    * Every place the card can be added from (v0.56.0), drawn as up to three overlapping favicons in a corner box and a
@@ -548,6 +548,7 @@ export function SourceCard({ item, providers, onAdd, eager }: {
    */
   providers?: StackSource[];
   onAdd: () => void;
+  details?: boolean;
   eager?: boolean;
 }) {
   const owned = !!item.inLibrary;
@@ -607,7 +608,7 @@ export function SourceCard({ item, providers, onAdd, eager }: {
         ) : (
           // Always visible. Not a hover reveal.
           <span aria-hidden className="absolute bottom-1.5 end-1.5 z-10 grid size-7 place-items-center rounded-full bg-accent text-black shadow-glow transition group-hover:scale-110">
-            <IcPlus width={15} height={15} />
+            {details ? <IcInfo width={15} height={15} /> : <IcPlus width={15} height={15} />}
           </span>
         )}
       </div>
@@ -621,7 +622,7 @@ export function SourceCard({ item, providers, onAdd, eager }: {
   const described = stack ? stackId : undefined;
   return owned && item.librarySeriesId
     ? <Link href={`/series/?id=${encodeURIComponent(item.librarySeriesId)}`} aria-label={item.title} aria-describedby={described} className={rootCls}>{body}</Link>
-    : <button type="button" onClick={onAdd} disabled={owned} aria-label={owned ? item.title : tr('Add to library')} aria-describedby={described} className={rootCls}>{body}</button>;
+    : <button type="button" onClick={onAdd} disabled={owned} aria-label={owned ? item.title : details ? `${tr('Details')}: ${item.title}` : tr('Add to library')} aria-describedby={described} className={rootCls}>{body}</button>;
 }
 
 /**

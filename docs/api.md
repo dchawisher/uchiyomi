@@ -950,9 +950,10 @@ Chapter downloads and page streaming work either way; the age cap is a permissio
 
 `GET /api/libraries` reports `adult: true` for such a library so a client can offer the reveal, and drops
 any library rated above the caller's own `max_age_rating` entirely.
-`GET /api/adult-filter` answers `{ configured: boolean }`: whether Admin → Settings → 18+ filter names any
-genre or source, so a client can offer the same reveal on an install with no 18+ library. Only the flag, never
-the lists, and always `false` for an account capped below 18.
+`GET /api/adult-filter` answers `{ configured: boolean, canShowAdult: boolean }`.
+`configured` reports whether an adult genre/source filter exists and the account is permitted to reveal it.
+`canShowAdult` reports permission independently of tags and libraries: true with no age cap or a cap of at least 18.
+Clients should use `canShowAdult` to offer the profile's reveal control. Neither field exposes the configured lists.
 
 The Komga-compatible API cannot pass the parameter either, so the same preference lives on the **API
 token**: `POST /api/tokens { …, "showAdult": true }` (since v0.38.0; the *Include 18+ content* checkbox in

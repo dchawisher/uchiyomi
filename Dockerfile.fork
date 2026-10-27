@@ -1,0 +1,15 @@
+# The exact NAS release supplies the runtime dependencies and entrypoint.
+ARG UPSTREAM=ghcr.io/angelosha/uchiyomi@sha256:3efabdc742563da4420ca7dc0c4020bb08f9fa7d4580ce3e33dfe399533f24ac
+FROM ${UPSTREAM} AS fork-build
+ENV NODE_ENV=development PUPPETEER_SKIP_DOWNLOAD=true NEXT_TELEMETRY_DISABLED=1
+WORKDIR /work
+COPY web/package*.json ./web/
+COPY bff/package*.json ./bff/
+RUN cd web && npm ci --no-audit --no-fund && cd ../bff && npm ci --no-audit --no-fund
+COPY . .
+RUN cd bff && npm run build && cd ../web && NODE_ENV=production npm run build
+
+FROM ${UPSTREAM}
+COPY --from=fork-build /work/bff/dist /app/dist
+COPY --from=fork-build /work/bff/openapi.yaml /app/openapi.yaml
+COPY --from=fork-build /work/web/out /app/web

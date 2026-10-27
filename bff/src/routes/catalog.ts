@@ -179,7 +179,7 @@ export default async function catalogRoutes(app: FastifyInstance) {
   // with no off switch on the Library or Home page. A boolean, never the lists themselves.
   app.get('/api/adult-filter', async (req) => {
     const ctx = await viewCtxFor(userIdOf(req), roleOf(req), { hideAdult: true });
-    return { configured: adultFilterConfigured(ctx) };
+    return { configured: adultFilterConfigured(ctx), canShowAdult: ctx.maxAgeRating === null || ctx.maxAgeRating >= 18 };
   });
 
   // No re-sort. SQL already ordered these by the database collation; sorting again in JS is byte order, so

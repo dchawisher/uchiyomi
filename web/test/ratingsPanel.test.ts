@@ -81,10 +81,10 @@ test('the page rates through the panel\'s hook, which clears, rolls back and say
 
 test('five stars, each a button that says what it does, the current one pressed', () => {
   const html = panel(null, 4);
-  const stars = [...html.matchAll(/<button type="button" aria-label="Rate (\d) of 5" aria-pressed="(true|false)"/g)].map((m) => [Number(m[1]), m[2]]);
-  assert.deepEqual(stars, [[1, 'false'], [2, 'false'], [3, 'false'], [4, 'true'], [5, 'false']]);
+  const stars = [...html.matchAll(/<button type="button" aria-label="Rate (\d(?:\.5)?) of 5" aria-pressed="(true|false)"/g)].map((m) => [Number(m[1]), m[2]]);
+  assert.deepEqual(stars, Array.from({ length: 10 }, (_, i) => [(i + 1) / 2, (i + 1) / 2 === 4 ? 'true' : 'false']));
   // Four drawn filled.
-  assert.equal((html.match(/<svg[^>]*fill="currentColor"[^>]*>(?:(?!<\/svg>).)*m12 3 2\.6/g) ?? []).length, 4, 'not four filled stars');
+  assert.equal((html.match(/<svg[^>]*fill="currentColor"[^>]*>(?:(?!<\/svg>).)*m12 3 2\.6/g) ?? []).length, 8, 'not eight filled half-stars');
   assert.match(html, /role="group" aria-labelledby="[^"]+"/, 'the stars are not one labelled group');
   assert.match(html, /Your rating/);
   assert.match(html, /Tap again to clear/, 'a rated series does not say how to take it back');

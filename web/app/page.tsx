@@ -14,7 +14,7 @@ import { Img, ProgressBar, RailSkeleton, SectionTitle, Reveal } from '@/componen
 import { SeriesCard, ContinueCard } from '@/components/cards';
 import { HeroCarousel } from '@/components/HeroCarousel';
 import { useArtUnderChrome } from '@/lib/overArt';
-import { AdultToggle, useAdultFilterConfigured } from '@/components/AdultToggle';
+import { AdultBadge, AdultToggle, useAdultFilterConfigured } from '@/components/AdultToggle';
 import { IcPlay, IcSparkle, IcRefresh, IcBell } from '@/components/icons';
 import { PullToRefresh } from '@/components/PullToRefresh';
 import { Avatar } from '@/components/Avatar';
@@ -276,8 +276,9 @@ export default function HomePage() {
             {/* Squared, as the desktop bar's: a round tag grows into a capsule at "9+". */}
             {(data?.updatesCount ?? 0) > 0 && <span className="absolute -end-1.5 -top-1 grid h-4 min-w-4 place-items-center rounded-[4px] bg-accent px-[3px] text-[10px] font-bold leading-none tabular-nums text-black">{(data!.updatesCount ?? 0) > 9 ? '9+' : data!.updatesCount}</span>}
           </Link>
-          <button type="button" aria-label={tr('You')} aria-haspopup="dialog" onClick={() => setQuickOpen(true)} className="grid h-10 w-10 place-items-center rounded-full transition active:opacity-80">
+          <button type="button" aria-label={tr('You')} aria-haspopup="dialog" onClick={() => setQuickOpen(true)} className="relative grid h-10 w-10 place-items-center rounded-full transition active:opacity-80">
             <Avatar avatar={user?.avatar} size={40} />
+            <AdultBadge />
           </button>
         </div>
       </header>

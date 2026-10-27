@@ -3944,7 +3944,7 @@ export default async function adminRoutes(app: FastifyInstance) {
       // friction this feature exists to remove, so switch them on (or off) as part of the same action --
       // except the ones in a language the operator has hidden, which stay off and are counted back.
       const provided = enable ? await sourcesOfExtension(pkgName).catch(() => []) : priorSources;
-      const adopted = await adoptExtensionSources(provided, enable);
+      const adopted = await adoptExtensionSources(provided, enable, action === 'update');
       if (action === 'install') {
         // The admin's now, a backup's row or a refusal of theirs forgotten (v0.82.0); and the extension check's copy
         // says installed, so its next look does not call the extension new.

@@ -730,7 +730,7 @@ function DiscoverInner() {
   const cardsOf = (from: number, to: number) => wall.items.slice(from, to).map((it, k) => (
     <SourceCard key={`${it.source}:${it.sourceId}`} item={{ ...it, inLibrary: it.inLibrary || shownAdded.has(workKey(it)) }}
       providers={stackOf(it)}
-      onAdd={() => open(it)} eager={from + k < 12} />
+      onAdd={() => open(it)} eager={from + k < 12} details />
   ));
   // One of the rows: the picks in their own band (v0.99.0, components/ForYouBand.tsx), each saying why it is there, or a
   // trending row, its first ten ranked. The read a pick came from is isolated in its sentence, as Home's "Because you read"
@@ -961,6 +961,7 @@ function DiscoverInner() {
           // Following a source is an admin act, like the manual follow route and the sheet's ×: a member
           // who may add must not be able to follow two sources they could never unfollow.
           mayFollow={isAdmin}
+          detailsFirst
           onClose={() => { fromKey.current = null; setSeed(null); }}
           onAdded={(r) => {
             // The card the dialog came from, by its work: off the wall, "In library" in a search. From the hero there is

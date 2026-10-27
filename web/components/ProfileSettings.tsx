@@ -33,6 +33,9 @@ import { INCOGNITO_TEXT } from '@/lib/incognito';
 import { COMMENTS_TEXT, talkWantedOf } from '@/lib/comments';
 import { TONES, toneOf, type Tone } from '@/lib/tone';
 import { useReduceEffects } from '@/lib/useReduceEffects';
+import { useAdultShown, useCanShowAdult } from '@/components/AdultToggle';
+import { setAdultShown } from '@/lib/adult';
+import { Switch } from '@/components/Switch';
 
 /**
  * The profile's settings pages: General · Appearance · Reading · This device (v0.86.0), rows of the profile's one list
@@ -119,6 +122,9 @@ const THEME_LABEL = { amoled: 'AMOLED', sepia: 'Sepia', gray: 'Gray' } as const;
 
 /** The language, how series pages list chapters, the shortcuts, and Incognito. */
 function GeneralPane({ pointer }: { pointer: boolean }) {
+  const qc = useQueryClient();
+  const adultOn = useAdultShown();
+  const canShowAdult = useCanShowAdult();
   const { user, setSettings } = useAuth();
   const { lang, setLang } = useT();
   const incognito = useIncognito();
@@ -195,6 +201,9 @@ function GeneralPane({ pointer }: { pointer: boolean }) {
 
       {/* v0.61.0: the account's, not this device's (lib/incognito.ts); the reader's sheet has the same switch. */}
       <RowGroup title={tr('Privacy')}>
+        {canShowAdult && <Row label={tr('Show 18+')}>
+          <Switch label={tr('Show 18+')} on={adultOn} onChange={(on) => { setAdultShown(on); void qc.invalidateQueries(); }} />
+        </Row>}
         <SwitchRow id="incognito" label={tr(INCOGNITO_TEXT[0])} help={tr(INCOGNITO_TEXT[1])} on={incognito.on} onChange={incognito.set} />
       </RowGroup>
     </>

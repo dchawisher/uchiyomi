@@ -287,7 +287,7 @@ test('an action is done when the lists on screen have it, so an install opens it
   assert.match(actions, /const refreshAll = \(\) => Promise\.all\(EXT_KEYS\.map\(\(queryKey\) => qc\.invalidateQueries\(\{ queryKey: \[\.\.\.queryKey\] \}\)\)\);/,
     'refreshAll does not resolve when the lists have answered');
   const act = slice(actions, 'const act = async (', 'const updateAll = async');
-  assert.match(act, /toast\(leftOff \? `\$\{said\} · \$\{leftOff\}` : said, 'success'\);\s*await refreshAll\(\);\s*return r;/,
+  assert.match(act, /toast\(said, 'success'\);\s*await refreshAll\(\);\s*return r;/,
     'an action says it is done before the lists have it');
   // Browse opens the sheet only after that.
   const browse = slice(panel, 'function BrowseView(', 'function NothingFound(');

@@ -28,7 +28,7 @@ async function setup() {
   const langs = await import('../src/lib/sources/suwayomi/langs');
   await migrate();
   await q('DELETE FROM suwayomi_sources');
-  await q(`UPDATE server_settings SET hidden_langs = '[]' WHERE id = 1`);
+  await q(`UPDATE server_settings SET hidden_langs = '[]', enabled_langs = '[]' WHERE id = 1`);
   await q(`INSERT INTO suwayomi_sources (source_id, name, lang, enabled) VALUES
              ('a', 'A', 'en', true), ('b', 'B', 'ru', true), ('c', 'C', 'ru', true)`);
   return { q, langs };
@@ -94,7 +94,7 @@ test('hiding a language turns its sources off, and stays hidden', { skip }, asyn
       await q(`INSERT INTO suwayomi_sources (source_id, name, lang, enabled) VALUES ('f', 'F', 'fr', true) ON CONFLICT (source_id) DO NOTHING`);
       let lost = 0;
       for (let round = 0; round < 10; round++) {
-        await q(`UPDATE server_settings SET hidden_langs = '[]' WHERE id = 1`);
+        await q(`UPDATE server_settings SET hidden_langs = '[]', enabled_langs = '[]' WHERE id = 1`);
         await q(`UPDATE suwayomi_sources SET enabled = true`);
         await Promise.all([
           langs.setSourcesEnabled({ langs: ['ru'], enabled: false }),
@@ -124,7 +124,7 @@ test('hiding a language turns its sources off, and stays hidden', { skip }, asyn
     });
   } finally {
     await q('DELETE FROM suwayomi_sources');
-    await q(`UPDATE server_settings SET hidden_langs = '[]' WHERE id = 1`);
+    await q(`UPDATE server_settings SET hidden_langs = '[]', enabled_langs = '[]' WHERE id = 1`);
   }
 });
 
@@ -181,7 +181,7 @@ test('the bulk route: one statement, one reload', { skip }, async (t) => {
   } finally {
     await app.close();
     await q('DELETE FROM suwayomi_sources');
-    await q(`UPDATE server_settings SET hidden_langs = '[]' WHERE id = 1`);
+    await q(`UPDATE server_settings SET hidden_langs = '[]', enabled_langs = '[]' WHERE id = 1`);
     await q(`DELETE FROM users WHERE username = $1`, [USER]).catch(() => {});
   }
 });

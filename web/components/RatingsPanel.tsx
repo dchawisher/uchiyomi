@@ -5,7 +5,7 @@
 // the banner, the meta line under the title, the line under the stars. The owner asked for once, and for it to look
 // better. AniList's score is a big number over "/ 100" with a thin meter filled to it -- a bar, never a ring: a ring
 // means work in progress everywhere else in this app -- and the whole tile opens the entry on AniList. The reader's
-// stars are five real buttons; tapping the current one again takes the rating back.
+// five stars have two buttons each, for half-star steps; tapping the current value again clears it.
 //
 // What decides (the tap, the request, the tile's numbers) is lib/ratings.ts, unit-tested in test/ratingsPanel.test.ts.
 import { useCallback, useId, useRef, useState, type KeyboardEvent } from 'react';
@@ -150,7 +150,7 @@ function RatingTile({ value, onRate, alone }: { value: number | null; onRate: (t
   );
 }
 
-const STARS = [1, 2, 3, 4, 5] as const;
+const STARS = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5] as const;
 
 /** Whether this focus came from the keyboard: a tap focuses a star too, and a tap is not a preview. */
 const keyboardFocus = (el: HTMLElement): boolean => {
@@ -158,7 +158,7 @@ const keyboardFocus = (el: HTMLElement): boolean => {
 };
 
 /**
- * Five buttons, each "Rate n of 5", pressed when it is the rating. Hovering with a mouse -- or moving through them with
+ * Ten half-star buttons, each "Rate n of 5", pressed when it is the rating. Hovering with a mouse -- or moving through them with
  * the keyboard -- lights the stars up to that one, a little dimmer than the rating itself, so you see what a tap will
  * do before you make it. The arrow keys move between them in the reading direction, Home and End to the ends.
  */
@@ -169,26 +169,28 @@ function StarRow({ value, onRate, size, labelledBy }: { value: number | null; on
   const move = (e: KeyboardEvent<HTMLButtonElement>, n: number) => {
     const rtl = getComputedStyle(e.currentTarget).direction === 'rtl';
     const by = e.key === 'ArrowRight' ? (rtl ? -1 : 1) : e.key === 'ArrowLeft' ? (rtl ? 1 : -1) : 0;
-    const to = e.key === 'Home' ? 1 : e.key === 'End' ? 5 : by ? Math.min(5, Math.max(1, n + by)) : 0;
+    const to = e.key === 'Home' ? 0.5 : e.key === 'End' ? 5 : by ? Math.min(5, Math.max(0.5, n + by * 0.5)) : 0;
     if (!to) return;
     e.preventDefault();
-    refs.current[to - 1]?.focus();
+    refs.current[to * 2 - 1]?.focus();
   };
   return (
-    <span role="group" aria-labelledby={labelledBy} className="-mx-1 flex shrink-0 items-center" onPointerLeave={() => setPreview(null)}>
+    <span role="group" aria-labelledby={labelledBy} dir="ltr" className="-mx-1 flex shrink-0 items-center" onPointerLeave={() => setPreview(null)}>
       {STARS.map((n) => {
         const on = n <= lit;
         const tone = !on ? 'text-fog-600 hover:text-fog-400' : preview !== null && preview !== value ? 'text-accent/70' : 'text-accent';
         return (
-          <button key={n} ref={(el) => { refs.current[n - 1] = el; }} type="button"
+          <button key={n} ref={(el) => { refs.current[n * 2 - 1] = el; }} type="button"
             aria-label={tr('Rate {n} of 5', { n })} aria-pressed={value === n}
             onClick={() => { setPreview(null); onRate(n); }}
             onPointerEnter={(e) => { if (e.pointerType === 'mouse') setPreview(n); }}
             onFocus={(e) => { if (keyboardFocus(e.currentTarget)) setPreview(n); }}
             onBlur={() => setPreview(null)}
             onKeyDown={(e) => move(e, n)}
-            className={`grid h-9 w-7 place-items-center rounded-md outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent/60 ${tone}`}>
-            <IcStar width={size} height={size} fill={on ? 'currentColor' : 'none'} aria-hidden />
+            className={`relative h-9 w-3.5 overflow-hidden outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/60 ${tone}`}>
+            <IcStar width={size} height={size} fill={on ? 'currentColor' : 'none'} aria-hidden
+              className="pointer-events-none absolute top-1/2 -translate-y-1/2"
+              style={{ left: (28 - size) / 2 - (Number.isInteger(n) ? 14 : 0) }} />
           </button>
         );
       })}

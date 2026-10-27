@@ -149,7 +149,7 @@ test('the 18+ filter hides named genres and sources, and nothing else', { skip }
         headers: { authorization: `Bearer ${app.jwt.sign({ sub: id, role })}` } });
       assert.equal(r.statusCode, 200, r.body);
       // Only the flag crosses the wire: the lists are admin settings.
-      assert.deepEqual(Object.keys(r.json()), ['configured']);
+      assert.deepEqual(Object.keys(r.json()), ['configured', 'canShowAdult']);
       return r.json().configured as boolean;
     };
 
