@@ -73,6 +73,8 @@ export interface ExtLang {
 }
 
 export interface ExtSourcesAnswer {
+  /** Languages explicitly enabled for future extension installs. */
+  enabledLangs?: string[];
   content: ExtSource[];
   reachable: boolean;
   total?: number;

@@ -1,7 +1,7 @@
 'use client';
 // The languages hidden in every extension (issue #38, as a sheet since v0.53.0): a standing instruction, applied now
 // and on every later install. Turning a language off switches off its sources in every extension and keeps them off
-// when the next one is installed; turning it on switches them back on and forgets the instruction.
+// when the next one is installed; turning it on also makes it a default for future installs.
 //
 // It was a "Languages · 0 hidden · Manage" strip in the one Extensions card, and a "Choose languages" key on the line
 // after a first repository opened it -- empty, because no extension was installed yet to have languages, which is how
@@ -57,6 +57,9 @@ export function LanguagesSheet({ onClose }: { onClose: () => void }) {
         <p className="text-[12px] leading-relaxed text-fog-400">
           {tr('Hiding a language switches its sources off and keeps them off when you add the next extension. Series from a hidden language stay readable but stop updating until you show it again.')}
         </p>
+        <p className="mt-2 text-[12px] leading-relaxed text-fog-400">
+          {tr('New extensions start with one source, preferably English. Choose additional languages below to enable them for future extensions too.')}
+        </p>
         {!data && <p className="py-4 text-sm text-fog-500">{tr('Loading…')}</p>}
         {data && !langs.length && <p className="py-4 text-sm text-fog-500">{tr('No extension sources yet — add an extension and its languages appear here.')}</p>}
         {langs.length > 0 && (
@@ -76,6 +79,14 @@ export function LanguagesSheet({ onClose }: { onClose: () => void }) {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm text-fog-100" title={code ?? undefined}>{name}</p>
                       <p className="mt-0.5 text-[11px] text-fog-500">{facts}</p>
+                      {code !== null && (data?.enabledLangs?.includes(code) ? (
+                        <p className="mt-1 text-[11px] text-fog-400">{tr('Enabled for new extensions')}</p>
+                      ) : !l.hidden && (
+                        <button type="button" className="mt-1 text-xs text-accent-300 underline underline-offset-2" disabled={!!busy}
+                          aria-label={tr('Enable {language} for new extensions', { language: name })} onClick={() => void toggleLang(l, true)}>
+                          {tr('Use for new extensions')}
+                        </button>
+                      ))}
                       {l.hidden && <p className="mt-0.5 text-[11px] text-amber-300/90">{tr('Hidden: new extensions leave it off')}</p>}
                       {/* v0.62.0: what this row is, where a reader keeping to one language decides on it. */}
                       {code === 'all' && <p className="mt-0.5 text-[11px] leading-relaxed text-fog-500" data-lang-mixed>{tr('Each lists the chapters of every language together. Turn it off to keep to the languages you read.')}</p>}

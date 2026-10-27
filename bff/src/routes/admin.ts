@@ -50,7 +50,7 @@ import {
   listExtensions, refreshExtensions, setExtensionState, sourcesOfExtension, getRepos, addRepo, removeRepo, altRepoUrl,
   parseRepoInput, repoKey, contributedBy, engineReason, REPO_MESSAGES, type ExtensionInfo,
 } from '../lib/sources/suwayomi/extensions';
-import { getHiddenLangs, setSourcesEnabled, adoptExtensionSources, langOverview, turnOnExtensionSources } from '../lib/sources/suwayomi/langs';
+import { getHiddenLangs, preferredLanguages, setSourcesEnabled, adoptExtensionSources, langOverview, turnOnExtensionSources } from '../lib/sources/suwayomi/langs';
 import { lastSuwayomiLoad, limitLeftSomethingOut, rememberMissing } from '../lib/sources/suwayomi/register';
 import { EngineRefusedError } from '../lib/sources/suwayomi/client';
 import { engineStatusReport, connectEngineSolver } from '../lib/extensionEngine';
@@ -3573,7 +3573,7 @@ export default async function adminRoutes(app: FastifyInstance) {
       .sort((a, b) => Number(b.enabled) - Number(a.enabled) || a.name.localeCompare(b.name));
     // The per-language overview rides along unfiltered: `q` and `lang` narrow the source list, and a
     // Languages panel that only knew about the language you had just filtered to would be no panel.
-    return { content, reachable, total: remote.length, langs: await langOverview(), hiddenLangs: await getHiddenLangs() };
+    return { content, reachable, total: remote.length, langs: await langOverview(), hiddenLangs: await getHiddenLangs(), enabledLangs: await preferredLanguages() };
   });
 
   /**

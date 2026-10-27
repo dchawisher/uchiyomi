@@ -4,7 +4,7 @@ import { q, tx } from '../../db';
 import { visibleToAll } from '../../visibility';
 import { defaultExtensionSources } from './defaultSources';
 
-async function preferredLanguages(): Promise<string[]> {
+export async function preferredLanguages(): Promise<string[]> {
   const rows = await q<{ enabled_langs: string[] }>('SELECT enabled_langs FROM server_settings WHERE id = 1');
   return rows[0]?.enabled_langs ?? [];
 }
