@@ -1587,8 +1587,10 @@ export default async function adminRoutes(app: FastifyInstance) {
 
   app.post('/api/admin/series/:id/chapter-page-counts', async (req, reply) => {
     const {id}=req.params as {id:string};
+    const body=z.object({limit:z.number().int().min(1).max(4).optional()}).strict().safeParse(req.body??{});
+    if(!body.success)return reply.code(400).send({error:'bad_request'});
     if (!(await getSeriesRow(id))) return reply.code(404).send({error:'not_found'});
-    return checkGroupingPages(id);
+    return checkGroupingPages(id,body.data.limit);
   });
 
   app.put('/api/admin/series/:id/chapter-grouping', async (req, reply) => {

@@ -130,8 +130,6 @@
   "Some sources include page counts in their listings. For others, we can count their page URLs without downloading the images.": "Some sources include page counts in their listings. For others, we can count their page URLs without downloading the images.",
   "Could not check page counts": "Could not check page counts",
   "Checking…": "Checking…",
-  "Check missing page counts": "Check missing page counts",
-  "Page counts found: {found}. Unavailable: {failed}. Still to check: {remaining}.": "Page counts found: {found}. Unavailable: {failed}. Still to check: {remaining}.",
   "Manage users with {name}.": "Manage users with {name}.",
   "Orphaned Files": "Orphaned Files",
   "Enable slow archive": "Enable slow archive",
@@ -156,5 +154,11 @@
   "Extra": "Extra",
   "Type": "Type",
   "File / source chapter": "File / source chapter",
-  "Download chapter {number} instead": "Download chapter {number} instead"
+  "Download chapter {number} instead": "Download chapter {number} instead",
+  "Counts pages from the source without downloading images.": "Counts pages from the source without downloading images.",
+  "Look up page counts": "Look up page counts",
+  "Stops after the current chapter.": "Stops after the current chapter.",
+  "Stopping…": "Stopping…",
+  "Stop": "Stop",
+  "Found {found} · Unavailable {failed} · Remaining {remaining}": "Found {found} · Unavailable {failed} · Remaining {remaining}"
 }

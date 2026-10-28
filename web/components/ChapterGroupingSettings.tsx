@@ -1,18 +1,13 @@
 'use client';
 import { useState } from 'react';
-import { api } from '@/lib/api';
 import { t as tr } from '@/lib/i18n';
 import type { Series } from '@/lib/types';
-import { msgOf } from './ConfirmDialog';
 
-export default function ChapterGroupingSettings({series,busy,onBusy,onSaved,onChange}:{
-  series:Series; busy:boolean; onBusy:(v:boolean)=>void; onSaved:()=>void;
+export default function ChapterGroupingSettings({series,busy,onChange}:{
+  series:Series; busy:boolean;
   onChange:(mode:NonNullable<Series['partDetection']>)=>Promise<boolean>;
 }) {
-  const [report,setReport]=useState<{checked:number;failed:number;remaining:number}|null>(null);
-  const [error,setError]=useState('');
   const [mode,setMode]=useState(series.partDetection ?? (series.fullChapters ? 'careful' : 'off'));
-  const [checking,setChecking]=useState(false);
   const options = [
     {value:'careful',title:tr('Careful (default)'),body:tr('A single decimal entry is treated as an extra. Two or more can form parts of a chapter.')},
     {value:'balanced',title:tr('Balanced'),body:tr('A single decimal entry can be a part, except a lone .5, which stays an extra.')},
@@ -34,14 +29,6 @@ export default function ChapterGroupingSettings({series,busy,onBusy,onSaved,onCh
     </div>
     <div className="border-t border-ink-700 pt-3">
       <p className="mb-2 text-sm leading-snug text-fog-300">{tr('Some sources include page counts in their listings. For others, we can count their page URLs without downloading the images.')}</p>
-      <button className="btn-key" disabled={busy} onClick={async()=>{
-        onBusy(true);setChecking(true);setError('');
-        try { setReport(await api(`/api/admin/series/${series.id}/chapter-page-counts`,{method:'POST',json:{}}));onSaved(); }
-        catch(e){setError(msgOf(e,tr('Could not check page counts')));}
-        finally{onBusy(false);setChecking(false);}
-      }}>{checking?tr('Checking…'):tr('Check missing page counts')}</button>
-      {report && <p role="status" className="mt-3 text-sm">{tr('Page counts found: {found}. Unavailable: {failed}. Still to check: {remaining}.',{found:report.checked,failed:report.failed,remaining:report.remaining})}</p>}
-      {error && <p role="alert" className="mt-3 text-sm text-red-300">{error}</p>}
     </div>
   </div>;
 }

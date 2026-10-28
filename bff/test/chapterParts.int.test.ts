@@ -268,3 +268,27 @@ test('chapter manager shows cached page counts, unknown counts, and remote chapt
   assert.equal(rows[2].pagesCount,null);
   for(const row of rows)assert.deepEqual(row.coveredBy,{kind:'volume',number:7,end:null});
 });
+
+test('page lookup covers standalone remote chapters, skips known local files, and finishes across small batches', {skip}, async()=>{
+  await q('DELETE FROM chapter_page_counts WHERE source=$1',[SRC]);
+  const cs=chapters([20,50,51,52,53,54]).map(c=>({...c,pages:undefined}));
+  await listing.replaceListing(S,listing.listingRows(cs,cs,new Set(),SRC));
+  pageRequests.length=0;
+  let report=await ok('POST',`/api/admin/series/${S}/chapter-page-counts`,{limit:1});
+  assert.deepEqual(report,{checked:1,failed:0,remaining:4});
+  assert.deepEqual(pageRequests,['ch-50']);
+  await q("UPDATE chapter_page_counts SET checked_at=now()-interval '30 days' WHERE source=$1 AND chapter_id='ch-50'",[SRC]);
+  for(let n=3;n>=0;n--){report=await ok('POST',`/api/admin/series/${S}/chapter-page-counts`,{limit:1});assert.deepEqual(report,{checked:0,failed:1,remaining:n});}
+  assert.equal(pageRequests.length,5);
+  assert.deepEqual(await ok('POST',`/api/admin/series/${S}/chapter-page-counts`,{limit:1}),{checked:0,failed:0,remaining:0});
+  assert.equal(pageRequests.length,5,'known counts and recent failures must not be retried');
+  assert.equal((await request('POST',`/api/admin/series/${S}/chapter-page-counts`,{limit:0})).statusCode,400);
+  assert.equal((await request('POST',`/api/admin/series/${S}/chapter-page-counts`,{},reader)).statusCode,403);
+});
+
+test('unavailable sources are cached so repeated batches cannot get stuck on the same release', {skip}, async()=>{
+  const cs=[{...chapters([80])[0],source:'missing-page-count-source',pages:undefined}];
+  await listing.replaceListing(S,listing.listingRows(cs,cs,new Set(),SRC));
+  assert.deepEqual(await ok('POST',`/api/admin/series/${S}/chapter-page-counts`,{limit:1}),{checked:0,failed:1,remaining:0});
+  assert.deepEqual(await ok('POST',`/api/admin/series/${S}/chapter-page-counts`,{limit:1}),{checked:0,failed:0,remaining:0});
+});

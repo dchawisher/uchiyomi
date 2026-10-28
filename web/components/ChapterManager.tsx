@@ -8,6 +8,7 @@ import { Modal, msgOf } from './ConfirmDialog';
 import VolumeRangeLookup from './VolumeRangeLookup';
 import ChapterGrouping from './ChapterGrouping';
 import ChapterGroupingSettings from './ChapterGroupingSettings';
+import PageCountLookup from './PageCountLookup';
 import { chapterTree, filterChapterTree, type ChapterNode, type ChapterTreeEntry } from '@/lib/chapterTree';
 
 type SourceChapter = ChapterTreeEntry & {
@@ -37,11 +38,13 @@ export default function ChapterManager({ series, books, listed, target, onClose,
   const [grouping, setGrouping] = useState<Entry | null>(null);
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const searchRef = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
+  const [saving, setBusy] = useState(false);
+  const [lookingUp, setLookingUp] = useState(false);
+  const busy=saving||lookingUp;
   const [error, setError] = useState('');
   const qc = useQueryClient();
   const queryKey = ['chapter-management', series.id];
-  const sources = useQuery({queryKey, queryFn:()=>api<{content:SourceChapter[]}>(`/api/admin/series/${series.id}/chapter-grouping`)});
+  const sources = useQuery({queryKey, refetchOnMount:'always', queryFn:()=>api<{content:SourceChapter[]}>(`/api/admin/series/${series.id}/chapter-grouping`)});
   const changed = () => { void qc.invalidateQueries({queryKey}); onSaved(); };
   const entries = useMemo<Entry[]>(()=>{
     const localNumbers=new Set(books.filter(b=>b.volumeNumber==null&&b.numberEnd==null).map(b=>Number(b.number.toFixed(3))));
@@ -148,7 +151,7 @@ export default function ChapterManager({ series, books, listed, target, onClose,
       {open&&node.children.length>0&&renderNodes(node.children,nested?[...ancestors,last]:[],true)}
     </Fragment>;
   });
-  return <Modal wide="manager" title={tr('Manage chapters')} onClose={() => { if (!busy) onClose(); }} fieldFocus={false}>
+  return <Modal wide="manager" title={tr('Manage chapters')} onClose={() => { if (!saving) onClose(); }} fieldFocus={false}>
     <div className="mb-3 flex flex-wrap gap-2" role="tablist" aria-label={tr('Manage chapters')}>
       {(['files', 'settings', 'lookup'] as const).map(t => <button key={t} role="tab" aria-selected={tab === t} disabled={busy || !!draft}
         className={`btn-key ${tab === t ? 'text-accent' : ''}`} onClick={() => setTab(t)}>{t === 'files' ? tr('Chapters') : t === 'settings' ? tr('Grouping settings') : tr('Look up chapter ranges')}</button>)}
@@ -156,7 +159,7 @@ export default function ChapterManager({ series, books, listed, target, onClose,
     {tab === 'lookup' ? <VolumeRangeLookup embedded seriesId={series.id} title={series.metadata?.title || series.name} target={target}
       onClose={() => setTab('files')} onSaved={changed} /> : tab === 'settings' ? <>
       {error && <p role="alert" className="mb-3 text-sm text-red-300">{error}</p>}
-      <ChapterGroupingSettings series={series} busy={busy} onBusy={setBusy} onSaved={changed}
+      <ChapterGroupingSettings series={series} busy={busy}
         onChange={partDetection => act(() => api(`/api/admin/series/${series.id}`, {method:'PATCH',json:{partDetection}}))} />
     </> : <>
       <div className="mb-3 flex flex-wrap items-center gap-3">
@@ -169,13 +172,14 @@ export default function ChapterManager({ series, books, listed, target, onClose,
         </select>
       </div>
       {error && <p role="alert" className="mb-3 text-sm text-red-300">{error}</p>}
-      <div className="mb-2 flex gap-2 text-sm">
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
         <button className="btn-key" disabled={busy || !!search || filter !== 'all'} onClick={() => setCollapsed(new Set())}>{tr('Expand all')}</button>
         <button className="btn-key" disabled={busy || !!search || filter !== 'all'} onClick={() => {
           const ids = new Set<string>();
           const collect = (nodes: Node[]) => nodes.forEach(n => { if (n.children.length) ids.add(n.id); collect(n.children); });
           collect(tree); setCollapsed(ids);
         }}>{tr('Collapse all')}</button>
+        <PageCountLookup seriesId={series.id} disabled={saving||!!draft} onRunning={setLookingUp} onSaved={changed}/>
       </div>
       {sources.isLoading && <p role="status" className="py-2 text-sm text-fog-400">{tr('Loading source chapters…')}</p>}
       {sources.isError && <p role="alert" className="py-2 text-sm text-red-300">{tr('Could not load source chapters.')} <button className="underline" onClick={()=>void sources.refetch()}>{tr('Retry')}</button></p>}
