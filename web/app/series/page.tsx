@@ -1003,6 +1003,7 @@ function SeriesInner() {
   const asGhost = useCallback((b: Book) => listing?.deletedAsGhosts === true && deliberatelyDeleted(b) && !downloaded.has(b.id), [listing?.deletedAsGhosts, downloaded]);
   const rowBooks = useMemo(() => allBooks.filter((b) => !asGhost(b) && !b.alternateOf), [allBooks, asGhost]);
   const alternateBooks = useMemo(() => allBooks.filter((b) => !asGhost(b) && b.alternateOf), [allBooks, asGhost]);
+  const mappedVolumeIds = useMemo(() => new Set(allBooks.filter(b => b.volumeNumber != null).map(b => b.id)), [allBooks]);
   const deletedGhosts = useMemo(() => allBooks.filter(asGhost).map(ghostOfDeleted), [allBooks, asGhost]);
   const visibleGhosts = useMemo(() => (showGhosts ? [...ghosts.filter((g) => !haveNumbers.has(g.number)), ...deletedGhosts].filter(g => !isAlternateGhost(g)) : []), [showGhosts, ghosts, haveNumbers, deletedGhosts]);
   const alternateGhosts = useMemo(() => (showGhosts ? [...ghosts.filter(g => !haveNumbers.has(g.number)), ...deletedGhosts].filter(isAlternateGhost) : []), [showGhosts, ghosts, haveNumbers, deletedGhosts]);
@@ -2001,7 +2002,7 @@ function SeriesInner() {
                 onReader={() => router.push(`/reader/?book=${b.id}`)} onToggleDownload={() => toggleDownload(b.id)}
                 onMark={mode => markChapter(b, mode)} onEdit={isAdmin ? () => setEditChapter(b) : undefined}
                 onVersions={() => setChapterSheet({ number: b.number, book: b })}
-                onKeepSeparate={isAdmin ? () => void changePartException(b.number, true) : undefined} />)}
+                onKeepSeparate={isAdmin && !mappedVolumeIds.has(b.alternateOf!) ? () => void changePartException(b.number, true) : undefined} />)}
               {alternateGhosts.map(g => <GhostRow key={`part:${g.number}`} ghost={g} compact={compact}
                 sourceNames={sourceNames} primarySource={primarySource}
                 onOpen={() => setChapterSheet({ number: g.number, ghost: g })}

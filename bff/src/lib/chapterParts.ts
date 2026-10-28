@@ -21,12 +21,25 @@ function partNumberSql(series: string, n: string): string {
       AND ${effectiveNumber('fp_four_book')} = (floor(${n}) + 0.4)::real)))`;
 }
 
-/** A usable full chapter suppresses its parts in the default reading order, never by deleting files. */
+/** A usable mapped volume or full chapter suppresses duplicate reading entries, never their files. */
 export function alternateOf(b: string): string {
   const n = effectiveNumber(b);
   return `(CASE WHEN ${b}.number_end IS NOT NULL OR EXISTS (SELECT 1 FROM book_overrides fp_own
     WHERE fp_own.book_id = ${b}.id AND (fp_own.volume_number IS NOT NULL OR fp_own.number_end IS NOT NULL))
-    THEN NULL ELSE ${fullChapterFor(`${b}.series_id`, n)} END)`;
+    THEN NULL ELSE COALESCE(${volumeFor(b, n)}, ${fullChapterFor(`${b}.series_id`, n)}) END)`;
+}
+
+// Explicit chapter coverage is independent of the optional split-chapter convention. Only a complete,
+// available volume can replace a chapter in the reading order; removing its mapping restores the chapter.
+function volumeFor(b: string, n: string): string {
+  return `(SELECT vc_book.id FROM lib_books vc_book
+    JOIN book_overrides vc_map ON vc_map.book_id = vc_book.id
+    WHERE vc_book.series_id = ${b}.series_id AND vc_book.id <> ${b}.id
+      AND vc_map.volume_number IS NOT NULL AND vc_map.number_end >= vc_map.number
+      AND ${n} BETWEEN vc_map.number AND vc_map.number_end
+      AND vc_book.pruned_at IS NULL AND vc_book.missing_pages IS NULL
+      AND NOT ${noticeBook('vc_book.id')}
+    ORDER BY vc_map.number, vc_book.file, vc_book.id LIMIT 1)`;
 }
 
 export function fullChapterFor(series: string, n: string): string {

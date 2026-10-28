@@ -51,9 +51,9 @@ const seriesSrcWith = (gate: Gate, ctx: ViewCtx, p: Params, alias: string) => `(
          COALESCE(o.reading_direction, s.reading_direction) AS reading_direction,
          -- The stored count less the notice chapters this series hides (lib/noticeChapters.ts), so every badge,
          -- filter and sort over it, and the Komga-compatible series Mihon's tracker reads, counts what is listed.
-         (${visibleBookCount('s')} - CASE WHEN s.full_chapters THEN
+         (${visibleBookCount('s')} -
            (SELECT count(*) FROM lib_books fp_count WHERE fp_count.series_id = s.id
-            AND NOT ${noticeBook('fp_count.id')} AND ${alternateOf('fp_count')} IS NOT NULL) ELSE 0 END)::int AS books_count,
+            AND NOT ${noticeBook('fp_count.id')} AND ${alternateOf('fp_count')} IS NOT NULL))::int AS books_count,
          s.cover_book_id, s.web, s.created_at, s.latest_mtime,
          s.auto_update, s.library_id, s.library_pinned, s.full_chapters,
          ARRAY(SELECT number FROM series_part_extras WHERE series_id = s.id ORDER BY number) AS part_extras,

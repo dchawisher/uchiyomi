@@ -142,10 +142,50 @@ test('listing coverage is reversible and survives a preference reapplication', {
   assert.equal(await status(24.1), 'available');
 });
 
-test('volume ranges do not act as single full chapters', { skip }, async () => {
-  await set(true);
-  await q(`INSERT INTO book_overrides (book_id,number,number_end,volume_number) VALUES ($1,22,30,1)`, [bid(22)]);
-  assert.equal((await books()).find((b: any) => b.number === 22.1).alternateOf, null);
+test('mapped volumes replace covered chapter entries, counts and navigation without enabling split conventions', { skip }, async () => {
+  await addBook(1);
+  await q('UPDATE lib_series SET books_count=11 WHERE id=$1', [S]);
+  await ok('PUT', `/api/admin/books/${bid(1)}/meta`, { number: 20, numberEnd: 21.1, volumeNumber: 1, volumeNumberEnd: 2 });
+  await separate(20.5, true); // An explicit volume range includes bonuses too.
+  const before = await books();
+  assert.equal(before.length, 11); // Kept accessible by id and in other versions.
+  for (const n of [20, 20.1, 20.2, 20.5, 21.1]) {
+    assert.equal(before.find((b: any) => b.id === bid(n)).alternateOf, bid(1));
+    assert.equal((await ok('GET', `/api/books/${bid(n)}`)).id, bid(n));
+  }
+  assert.equal(before.find((b: any) => b.id === bid(21.2)).alternateOf, null);
+  assert.equal(before.find((b: any) => b.id === bid(1)).alternateOf, null);
+  assert.equal((await ok('GET', `/api/series/${S}`)).booksCount, 6);
+  assert.equal((await ok('GET', `/api/books/${bid(1)}/next`)).id, bid(21.2));
+  const { owned } = await import('../src/lib/ownedCatalog');
+  const { SYSTEM_CTX } = await import('../src/lib/visibility');
+  assert.equal((await owned.bookPrevious(SYSTEM_CTX, bid(21.2))).id, bid(1));
+  await q(`INSERT INTO read_progress (user_id,book_id,series_id,page,completed) VALUES ($1,$2,$3,3,false)`, [adminId, bid(20.1), S]);
+  await q(`INSERT INTO read_progress (user_id,book_id,series_id,page,completed) VALUES ($1,$2,$3,10,true)`, [adminId, bid(1), S]);
+  assert.equal((await books()).find((b: any) => b.id === bid(20.1)).readProgress.completed, true);
+  assert.ok(!(await books(reader)).find((b: any) => b.id === bid(20.1)).readProgress?.completed);
+  assert.deepEqual((await q('SELECT page,completed FROM read_progress WHERE book_id=$1', [bid(20.1)]))[0], { page: 3, completed: false });
+  await ok('PUT', `/api/admin/books/${bid(1)}/meta`, { number: null, numberEnd: null, volumeNumber: null, volumeNumberEnd: null });
+  assert.ok((await books()).every((b: any) => !b.alternateOf));
+  assert.equal((await ok('GET', `/api/series/${S}`)).booksCount, 11);
+  assert.equal((await books()).find((b: any) => b.id === bid(20.1)).readProgress.page, 3);
+});
+
+test('unusable volumes and unmapped ranges do not hide chapters; volumes never hide one another', { skip }, async () => {
+  await q(`INSERT INTO book_overrides (book_id,number,number_end,volume_number) VALUES ($1,20,22.1,1)`, [bid(20)]);
+  assert.equal((await books()).find((b: any) => b.id === bid(22.1)).alternateOf, bid(20));
+  for (const field of ["pruned_at = now()", "pruned_at = NULL, missing_pages = ARRAY[2]"]) {
+    await q(`UPDATE lib_books SET ${field} WHERE id=$1`, [bid(20)]);
+    assert.ok((await books()).every((b: any) => !b.alternateOf));
+  }
+  // Zero is the scanner's initial, uninspected page count, not evidence of an empty archive.
+  await q('UPDATE lib_books SET missing_pages=NULL, pages=0 WHERE id=$1', [bid(20)]);
+  assert.equal((await books()).find((b: any) => b.id === bid(22.1)).alternateOf, bid(20));
+  await q(`INSERT INTO book_overrides (book_id,number,number_end,volume_number) VALUES ($1,21,21.2,2)`, [bid(21.1)]);
+  assert.equal((await books()).find((b: any) => b.id === bid(21.1)).alternateOf, null);
+  await q('DELETE FROM book_overrides WHERE book_id=ANY($1::text[])', [[bid(20),bid(21.1)]]);
+  await q('UPDATE lib_books SET number_end=22.1 WHERE id=$1', [bid(20)]);
+  assert.ok((await books()).every((b: any) => !b.alternateOf));
 });
 
 test('listing-only updater keeps lone .5 and uncovered parts, and prefers available full releases', { skip }, async () => {
