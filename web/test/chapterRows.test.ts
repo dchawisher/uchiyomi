@@ -7,7 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { FETCH_CHUNK, GHOST_CAP, chaptersLeft, chunkNumbers, countsAsBehind, heldBy, mergeRows, openableChapters, prunedLabel, prunedWords, runLabel, wholesHeld, whyLabel, type Row } from '../lib/chapterRows';
+import { FETCH_CHUNK, GHOST_CAP, chaptersLeft, chunkNumbers, countsAsBehind, heldBy, isAlternateGhost, mergeRows, openableChapters, prunedLabel, prunedWords, runLabel, wholesHeld, whyLabel, type Row } from '../lib/chapterRows';
 import type { Book, Ghost } from '../lib/types';
 
 test('default reader skips retained parts, but explicitly opened parts remain navigable', () => {
@@ -62,26 +62,13 @@ test('floor ghosts collapse into one run row', () => {
   assert.deepEqual(whyLabel({ why: 'missing' }), { key: 'not here yet', args: {} });
 });
 
-test('another site\'s split of a chapter here says so, and is not a chapter behind', () => {
-  // v0.50.0 (bff lib/partAlias.ts): a follower's 78.1 ... 78.9 beside the whole 78 on disk come back `covered`.
-  // Reintroduce by dropping the `covered` case in whyLabel: the row has no caption; or the `covered` test in
-  // countsAsBehind: the supply line counts nine chapters "not here" that are.
-  const r2 = { key: 'another split', args: {}, full: { key: 'another split of a chapter you have', args: {} } };
-  assert.deepEqual(whyLabel({ why: 'covered' }), r2);
-  assert.deepEqual(whyLabel({ why: 'covered' }, { wholeHere: true }), r2);
-  // R3: nothing of the chapter is here yet, and the other split is a new chapter's first-ranked source's to fetch.
-  const r3 = whyLabel({ why: 'covered' }, { wholeHere: false });
-  assert.equal(r3?.full?.key, 'another site’s split of this chapter', 'a covered part of a chapter nothing of is here');
-  assert.equal(r3?.key, 'another site’s split');
-  // The caption leaves room for the group and "via {source}" beside it, at 390 and in the desktop grid's 287-px cells
-  // ("another split of a cha…" with no source, in the v0.50.0 browser check), and the sentence is the row's title and
-  // its screen-reader text. Reintroduce by captioning with the sentence (whyLabel's `key` the sentence's): the
-  // `deepEqual` on r2 above fails, and this length check with it.
-  for (const k of [r2.key, r3!.key]) assert.ok(k.length <= 20, `"${k}" is too long a caption for the source to show beside it`);
-  const page = readFileSync(join(__dirname, '..', 'app', 'series', 'page.tsx'), 'utf8');
-  assert.match(page, /plain\.push\(lead\.full \?\? lead\.text\);/, 'the row\'s title does not say the whole sentence');
-  assert.match(page, /<span aria-hidden="true">\{lead\.text\}<\/span><span className="sr-only">\{lead\.full\}<\/span>/,
-    'a screen reader is given the short caption, not the sentence');
+test('alternatives have no split caption and stay collapsed without a downloaded parent', () => {
+  assert.equal(whyLabel({ why: 'covered' }), null);
+  assert.equal(isAlternateGhost({ why: 'covered', alternateOf: null }), true);
+  assert.equal(isAlternateGhost({ why: 'missing', alternateOf: 'full-book' }), true);
+  for (const why of ['missing', 'held', 'failed', 'floor', 'archive'] as const) {
+    assert.equal(isAlternateGhost({ why, alternateOf: null }), false, `${why} must remain in the normal list`);
+  }
   assert.equal(countsAsBehind({ why: 'covered' }), false, 'a covered ghost counted as behind');
   assert.deepEqual(['missing', 'held', 'failed', 'blocked', 'floor', 'archive'].map((why) => countsAsBehind({ why: why as any })),
     [true, true, true, true, false, false]);

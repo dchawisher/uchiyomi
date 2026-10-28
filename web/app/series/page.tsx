@@ -28,7 +28,7 @@ import { reasonText, type Said } from '@/lib/said';
 import { offlineOutcome } from '@/lib/notices';
 import { FindMissingDialog } from '@/components/FindMissingDialog';
 import { normGroup } from '@/lib/scanlators';
-import { GHOST_CAP, mergeRows, whyLabel, runLabel, chunkNumbers, countsAsBehind, MARK_CHUNK, heldBy, lastOf, wholesHeld, prunedWords, deliberatelyDeleted, ghostOfDeleted, type Row } from '@/lib/chapterRows';
+import { GHOST_CAP, mergeRows, whyLabel, runLabel, chunkNumbers, countsAsBehind, MARK_CHUNK, heldBy, lastOf, prunedWords, deliberatelyDeleted, ghostOfDeleted, isAlternateGhost, type Row } from '@/lib/chapterRows';
 import { chParam, landingNumber } from '@/lib/healthLinks';
 import { effectsReduced } from '@/lib/effects';
 import { clampPage, numberingSpan, pageCount, pageLabel, pageOf, pageSizeFor, pageSlice } from '@/lib/chapterPages';
@@ -609,12 +609,10 @@ function SelectBubble({ selected }: { selected: boolean }) {
  * dimmed, because "this server does not have it" is still true. The mark lives in its own table and becomes
  * ordinary progress when the chapter lands (bff lib/listingProgress).
  */
-function GhostRow({ ghost, sourceNames, primarySource, selectable, selected, onToggle, onFetch, onOpen, onMark, onHide, onKeepSeparate, keepSeparate, compact, wholeHere }: {
+function GhostRow({ ghost, sourceNames, primarySource, selectable, selected, onToggle, onFetch, onOpen, onMark, onHide, onKeepSeparate, keepSeparate, compact }: {
   ghost: Ghost;
   onKeepSeparate?: () => void;
   keepSeparate?: boolean;
-  /** The series holds a chapter at this ghost's whole number: what a covered row's caption says (lib/chapterRows.ts whyLabel). */
-  wholeHere?: boolean;
   /** ChapterRow's compact list, so the two kinds of row still line up where they interleave. */
   compact?: boolean;
   sourceNames?: Record<string, string>;
@@ -646,7 +644,7 @@ function GhostRow({ ghost, sourceNames, primarySource, selectable, selected, onT
   ], { label: tr('Chapter actions') });
   const hasMenu = !!onMark || !!onHide || !!onKeepSeparate;
   const menuBind = hasMenu && !selectable ? menu.bind : {};
-  const label = whyLabel(ghost, { wholeHere });
+  const label = whyLabel(ghost);
   // The same rule as the chapter row's caption: the series' own source is the normal case, not news. The
   // listing carries the source's name, so an id the followed list no longer resolves still gets one --
   // ⚠️ unless that "name" IS the id: the server falls back to `getSource(id)?.name ?? id`, so a source that
@@ -985,9 +983,6 @@ function SeriesInner() {
   // honest too). A file holding a range holds every number in it (heldBy, v0.55.2).
   const allBooks = useMemo(() => books?.content ?? [], [books]);
   const haveNumbers = useMemo(() => heldBy(allBooks), [allBooks]);
-  // The whole numbers the series holds something at, for a covered row's caption (GhostRow `wholeHere`): each of a
-  // range's too (wholesHeld).
-  const haveWholes = useMemo(() => wholesHeld(allBooks), [allBooks]);
   // The sheet's solid chips are the LIVE rows only: a tombstone keeps its row (the ghost dedupe above is
   // right to count it -- the number is not "missing", it was deleted on purpose) but has no pages, and a
   // solid chip promises pages. Reintroduce by passing `haveNumbers` to the sheet: the chip for a pruned
@@ -1000,8 +995,8 @@ function SeriesInner() {
   const rowBooks = useMemo(() => allBooks.filter((b) => !asGhost(b) && !b.alternateOf), [allBooks, asGhost]);
   const alternateBooks = useMemo(() => allBooks.filter((b) => !asGhost(b) && b.alternateOf), [allBooks, asGhost]);
   const deletedGhosts = useMemo(() => allBooks.filter(asGhost).map(ghostOfDeleted), [allBooks, asGhost]);
-  const visibleGhosts = useMemo(() => (showGhosts ? [...ghosts.filter((g) => !haveNumbers.has(g.number)), ...deletedGhosts].filter(g => !g.alternateOf) : []), [showGhosts, ghosts, haveNumbers, deletedGhosts]);
-  const alternateGhosts = useMemo(() => (showGhosts ? [...ghosts.filter(g => !haveNumbers.has(g.number)), ...deletedGhosts].filter(g => g.alternateOf) : []), [showGhosts, ghosts, haveNumbers, deletedGhosts]);
+  const visibleGhosts = useMemo(() => (showGhosts ? [...ghosts.filter((g) => !haveNumbers.has(g.number)), ...deletedGhosts].filter(g => !isAlternateGhost(g)) : []), [showGhosts, ghosts, haveNumbers, deletedGhosts]);
+  const alternateGhosts = useMemo(() => (showGhosts ? [...ghosts.filter(g => !haveNumbers.has(g.number)), ...deletedGhosts].filter(isAlternateGhost) : []), [showGhosts, ghosts, haveNumbers, deletedGhosts]);
   // The names the filter offers: the groups route's, or -- when it answered with nothing (a series scanned
   // from disk, a route that is not there) -- whatever the chapters on disk name, so a hand-built library
   // with tagged files still gets the filter.
@@ -1922,7 +1917,6 @@ function SeriesInner() {
           if (r.kind === 'ghost') {
             return (
               <GhostRow key={`g:${r.ghost.bookId ?? r.ghost.number}`} ghost={r.ghost} compact={compact} sourceNames={sourceNames} primarySource={primarySource}
-                wholeHere={haveWholes.has(Math.floor(r.ghost.number))}
                 keepSeparate={series?.partExtras?.includes(r.ghost.number)}
                 onKeepSeparate={isAdmin && series?.fullChapters && !Number.isInteger(r.ghost.number)
                   ? () => void changePartException(r.ghost.number, !series.partExtras?.includes(r.ghost.number)) : undefined}
@@ -1992,14 +1986,13 @@ function SeriesInner() {
             {tr('Parts / other versions')} ({alternateBooks.length + alternateGhosts.length})
           </button>
           {showParts && <div id="parts-list" className="mt-3">
-            <p className="mb-3 text-xs text-fog-500">{tr('These parts are retained. The reader uses the downloaded full chapter instead.')}</p>
             <div className={chapterRowsClass(view)}>
               {alternateBooks.map(b => <ChapterRow key={b.id} book={b} compact={compact} downloaded={downloaded.has(b.id)} sourceNames={sourceNames} primarySource={primarySource}
                 onReader={() => router.push(`/reader/?book=${b.id}`)} onToggleDownload={() => toggleDownload(b.id)}
                 onMark={mode => markChapter(b, mode)} onEdit={isAdmin ? () => setEditChapter(b) : undefined}
                 onVersions={() => setChapterSheet({ number: b.number, book: b })}
                 onKeepSeparate={isAdmin ? () => void changePartException(b.number, true) : undefined} />)}
-              {alternateGhosts.map(g => <GhostRow key={`part:${g.number}`} ghost={g} compact={compact} wholeHere
+              {alternateGhosts.map(g => <GhostRow key={`part:${g.number}`} ghost={g} compact={compact}
                 sourceNames={sourceNames} primarySource={primarySource}
                 onOpen={() => setChapterSheet({ number: g.number, ghost: g })}
                 onFetch={canDownload(user) ? () => fetchOne(g.number) : undefined}
