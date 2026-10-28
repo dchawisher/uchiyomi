@@ -43,12 +43,15 @@ export function mixedBookCountText(total: number, volumes: number): string {
   return [volumes > 0 ? bookCountText(volumes, true) : '', chapters > 0 ? bookCountText(chapters) : ''].filter(Boolean).join(' · ') || bookCountText(0);
 }
 
-export function chapterLabel(b: { metadata?: { number?: string; title?: string }; number?: number; numberEnd?: number | null; volumeNumber?: number | null; name?: string }): string {
+export function chapterLabel(b: { metadata?: { number?: string; title?: string }; number?: number; numberEnd?: number | null; volumeNumber?: number | null; volumeNumberEnd?: number | null; name?: string }): string {
   const raw = b.number != null && b.numberEnd != null && b.numberEnd > b.number
     ? `${b.number}–${b.numberEnd}`
     : b.number != null ? String(b.number) : '';
   const n = b.metadata?.number ?? raw;
-  if (b.volumeNumber != null) return `${tr('Vol. {n}', { n: b.volumeNumber })} · ${tr('Ch. {n}', { n: raw })}`;
+  if (b.volumeNumber != null) {
+    const volume = b.volumeNumberEnd != null && b.volumeNumberEnd > b.volumeNumber ? `${b.volumeNumber}–${b.volumeNumberEnd}` : b.volumeNumber;
+    return `${tr('Vol. {n}', { n: volume })} · ${tr('Ch. {n}', { n: raw })}`;
+  }
   // Through tr() (v0.55.7): "Ch. 12" was English on every chapter row, in the reader's list and on the edition chips,
   // in a file that has said "الفصل {n}" for "Ch. {n}" since the gap ranges.
   if (n) return isVolumeName(b.name || b.metadata?.title) ? tr('Vol. {n}', { n }) : tr('Ch. {n}', { n });

@@ -1,4 +1,4 @@
-export interface LookupBook { id: string; name: string; number: number; volumeNumber: number | null; numberEnd: number | null }
+export interface LookupBook { id: string; name: string; number: number; volumeNumber: number | null; volumeNumberEnd?: number | null; numberEnd: number | null }
 export interface VolumeSuggestion {
   volume: number; first: number | null; last: number | null; chapters: number[];
   issues: Array<'gaps' | 'conflict' | 'noWholeChapters' | 'tooWide'>;
@@ -21,7 +21,7 @@ export function volumeFromName(name: string): number | null {
 
 export function volumeDrafts(data: VolumeLookup, target?: { bookId?: string; volume?: number }): VolumeDraft[] {
   return data.volumes.map(v => {
-    const saved = data.books.filter(b => b.volumeNumber === v.volume);
+    const saved = data.books.filter(b => b.volumeNumber != null && v.volume >= b.volumeNumber && v.volume <= (b.volumeNumberEnd ?? b.volumeNumber));
     const matches = target?.bookId
       ? data.books.filter(b => b.id === target.bookId && b.volumeNumber == null
         && (target.volume ?? volumeFromName(b.name)) === v.volume)

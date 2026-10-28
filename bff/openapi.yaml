@@ -10183,6 +10183,7 @@ paths:
                     properties:
                       bookId: { type: string }
                       volume: { type: number, exclusiveMinimum: 0, maximum: 100000 }
+                      volumeEnd: { type: number, exclusiveMinimum: 0, maximum: 100000, description: Last volume in an intact omnibus. }
                       first: { type: number, minimum: 0, maximum: 100000 }
                       last: { type: number, minimum: 0, maximum: 100000 }
       responses:
@@ -10221,6 +10222,11 @@ paths:
                 volumeNumber:
                   type: [number, "null"]
                   description: Positive volume label; requires a first and last chapter. Null clears the volume mapping.
+                  exclusiveMinimum: 0
+                  maximum: 100000
+                volumeNumberEnd:
+                  type: [number, "null"]
+                  description: Optional last volume of an omnibus, at least volumeNumber. Null clears the span.
                   exclusiveMinimum: 0
                   maximum: 100000
                 numberEnd:

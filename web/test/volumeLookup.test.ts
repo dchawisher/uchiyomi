@@ -19,6 +19,11 @@ test('keeps saved mappings even when the remote boundaries differ', () => {
   assert.equal(saved.saved, true); assert.equal(saved.selected, false);
   assert.equal(saved.start, '10'); assert.equal(saved.end, '20');
 });
+
+test('a saved omnibus protects all its constituent volumes from being mapped again', () => {
+  const drafts = volumeDrafts({ ...data, books: [{ ...data.books[0], volumeNumber: 1, volumeNumberEnd: 2, number: 1, numberEnd: 16 }] });
+  assert.ok(drafts.every(r => r.saved && !r.selected));
+});
 test('ambiguous files are not automatically chosen; warnings require review', () => {
   assert.equal(volumeDrafts({ ...data, books: [...data.books, { ...data.books[0], id: 'c' }] })[0].bookId, '');
   const row = { ...volumeDrafts(data)[0], issues: ['gaps'] as const };

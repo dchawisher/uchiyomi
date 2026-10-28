@@ -17,8 +17,8 @@ export function volumeLookupRoutes(app: FastifyInstance): void {
     if (!input.success) return reply.code(400).send({ error: 'bad_request' });
     const series = await one<{ title: string }>('SELECT title FROM lib_series WHERE id = $1 AND deleted_at IS NULL', [id]);
     if (!series) return reply.code(404).send({ error: 'not_found' });
-    const books = await q(`SELECT b.id, b.title AS name, COALESCE(ov.number, b.number)::float8 AS number,
-      ov.volume_number::float8 AS "volumeNumber", ov.number_end::float8 AS "numberEnd"
+    const books = await q(`SELECT b.id, b.title AS name, COALESCE(ov.number, b.number) AS number,
+      ov.volume_number AS "volumeNumber", ov.volume_number_end AS "volumeNumberEnd", ov.number_end AS "numberEnd"
       FROM lib_books b LEFT JOIN book_overrides ov ON ov.book_id = b.id
       WHERE b.series_id = $1 AND b.pruned_at IS NULL ORDER BY b.number, b.id`, [id]);
     let mangaId = input.data.mangaId;
@@ -53,8 +53,9 @@ export function volumeLookupRoutes(app: FastifyInstance): void {
     const { id } = req.params as { id: string };
     const input = z.object({ mappings: z.array(z.object({
       bookId: z.string().min(1).max(300), volume: z.number().positive().max(100000),
+      volumeEnd: z.number().positive().max(100000).optional(),
       first: z.number().min(0).max(100000), last: z.number().min(0).max(100000),
-    }).refine(r => r.last >= r.first && r.last - r.first <= 1000)).min(1).max(500) }).safeParse(req.body);
+    }).refine(r => r.last >= r.first && r.last - r.first <= 1000 && (r.volumeEnd == null || r.volumeEnd >= r.volume))).min(1).max(500) }).safeParse(req.body);
     if (!input.success) return reply.code(400).send({ error: 'bad_request' });
     const mappings = input.data.mappings;
     if (new Set(mappings.map(r => r.bookId)).size !== mappings.length
@@ -69,11 +70,11 @@ export function volumeLookupRoutes(app: FastifyInstance): void {
           ORDER BY b.id FOR UPDATE OF b`, [id, mappings.map(r => r.bookId)]);
         if (files.length !== mappings.length) throw new Error('Files changed. Close the lookup and try again.');
         for (const row of mappings) {
-          const saved = await qq(`INSERT INTO book_overrides (book_id, number, volume_number, number_end, updated_at)
-            VALUES ($1,$2,$3,$4,now()) ON CONFLICT (book_id) DO UPDATE
+          const saved = await qq(`INSERT INTO book_overrides (book_id, number, volume_number, number_end, volume_number_end, updated_at)
+            VALUES ($1,$2,$3,$4,$5,now()) ON CONFLICT (book_id) DO UPDATE
             SET number = EXCLUDED.number, volume_number = EXCLUDED.volume_number,
-                number_end = EXCLUDED.number_end, updated_at = now()
-            WHERE book_overrides.volume_number IS NULL RETURNING book_id`, [row.bookId, row.first, row.volume, row.last]);
+                number_end = EXCLUDED.number_end, volume_number_end = EXCLUDED.volume_number_end, updated_at = now()
+            WHERE book_overrides.volume_number IS NULL RETURNING book_id`, [row.bookId, row.first, row.volume, row.last, row.volumeEnd ?? null]);
           if (!saved.length) throw new Error('A file already has a volume mapping. Close the lookup and try again.');
         }
       });

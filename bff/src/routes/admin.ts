@@ -2488,19 +2488,24 @@ export default async function adminRoutes(app: FastifyInstance) {
     const b = z.object({
       number: z.number().min(0).max(100000).nullish(),
       volumeNumber: z.number().positive().max(100000).nullish(),
+      volumeNumberEnd: z.number().positive().max(100000).nullish(),
       numberEnd: z.number().min(0).max(100000).nullish(),
       title: z.string().max(300).nullish(),
     }).safeParse(req.body);
     if (!b.success) return reply.code(400).send({ error: 'bad_request' });
 
-    const book = await one<{ number: number; volume_number: number | null; number_end: number | null; override_number: number | null }>(
-      `SELECT b.number, ov.volume_number, ov.number_end, ov.number AS override_number
+    const book = await one<{ number: number; volume_number: number | null; volume_number_end: number | null; number_end: number | null; override_number: number | null }>(
+      `SELECT b.number, ov.volume_number, ov.volume_number_end, ov.number_end, ov.number AS override_number
          FROM lib_books b LEFT JOIN book_overrides ov ON ov.book_id = b.id WHERE b.id = $1`, [id]);
     if (!book) return reply.code(404).send({ error: 'not_found' });
 
     const title = (b.data.title ?? '').trim() || null;
     const number = b.data.number === undefined ? book.override_number : b.data.number;
     const volumeNumber = b.data.volumeNumber === undefined ? book.volume_number : b.data.volumeNumber;
+    const volumeNumberEnd = volumeNumber == null ? null : b.data.volumeNumberEnd === undefined ? book.volume_number_end : b.data.volumeNumberEnd;
+    if ((volumeNumberEnd != null && volumeNumberEnd < volumeNumber!) || (volumeNumber == null && b.data.volumeNumberEnd != null)) {
+      return reply.code(400).send({ error: 'The last volume must be at least the first volume.' });
+    }
     const numberEnd = volumeNumber == null ? null : b.data.numberEnd === undefined ? book.number_end : b.data.numberEnd;
     if ((volumeNumber != null && (number == null || numberEnd == null || numberEnd < number || numberEnd - number > 1000))
       || (volumeNumber == null && b.data.numberEnd != null)) {
@@ -2510,9 +2515,9 @@ export default async function adminRoutes(app: FastifyInstance) {
       await q('DELETE FROM book_overrides WHERE book_id = $1', [id]);
     } else {
       await q(
-        `INSERT INTO book_overrides (book_id, number, title, volume_number, number_end, updated_at) VALUES ($1, $2, $3, $4, $5, now())
-         ON CONFLICT (book_id) DO UPDATE SET number = $2, title = $3, volume_number = $4, number_end = $5, updated_at = now()`,
-        [id, number, title, volumeNumber, numberEnd],
+        `INSERT INTO book_overrides (book_id, number, title, volume_number, number_end, volume_number_end, updated_at) VALUES ($1, $2, $3, $4, $5, $6, now())
+         ON CONFLICT (book_id) DO UPDATE SET number = $2, title = $3, volume_number = $4, number_end = $5, volume_number_end = $6, updated_at = now()`,
+        [id, number, title, volumeNumber, numberEnd, volumeNumberEnd],
       );
     }
     const affected = await one<{ n: number }>(
@@ -2520,7 +2525,7 @@ export default async function adminRoutes(app: FastifyInstance) {
     );
     await logAudit('book.meta_override', {
       userId: userIdOf(req),
-      detail: { id, from: book.number, to: number, title, volumeNumber, numberEnd },
+      detail: { id, from: book.number, to: number, title, volumeNumber, numberEnd, volumeNumberEnd },
       req,
     });
     return { ok: true, affectedUsers: affected?.n ?? 0 };

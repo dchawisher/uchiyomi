@@ -779,6 +779,7 @@ CREATE TABLE IF NOT EXISTS book_overrides (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE book_overrides ADD COLUMN IF NOT EXISTS volume_number real;
+ALTER TABLE book_overrides ADD COLUMN IF NOT EXISTS volume_number_end real;
 ALTER TABLE book_overrides ADD COLUMN IF NOT EXISTS number_end real;
 -- Chapter number and title are DERIVED, not stored. Title is the filename minus its extension, and number
 -- is read from the filename by the row's name_rule (lib/naming.ts numberByRule). Rule 1 is numFromName(),
@@ -2126,6 +2127,13 @@ async function seedBackupExtensions(c: PoolClient): Promise<void> {
  * Run-once data migrations, oldest first. Ids are permanent: renaming one re-runs it everywhere.
  */
 const DATA_MIGRATIONS: { id: string; run: (c: PoolClient) => Promise<void> }[] = [
+  {
+    id: 'hawisher-003-omnibus-volume-span',
+    run: async (c) => {
+      await c.query(`ALTER TABLE book_overrides ADD CONSTRAINT book_volume_span_check CHECK (
+        volume_number_end IS NULL OR (volume_number IS NOT NULL AND volume_number_end >= volume_number AND volume_number_end <= 100000))`);
+    },
+  },
   {
     id: 'hawisher-002-volume-chapter-ranges',
     run: async (c) => {

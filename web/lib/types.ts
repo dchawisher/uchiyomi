@@ -329,6 +329,7 @@ export interface Book {
   numberEnd?: number | null;
   /** Explicit volume label; number/numberEnd are its chapter coverage. */
   volumeNumber?: number | null;
+  volumeNumberEnd?: number | null;
   media: { pagesCount: number; mediaType?: string; status?: string };
   metadata: BookMetadata;
   readProgress?: ReadProgress | null;

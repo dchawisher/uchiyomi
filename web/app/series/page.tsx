@@ -225,6 +225,7 @@ function ChapterEditModal({ book, onClose, onSaved, onLookup }: { book: Book; on
   const [number, setNumber] = useState(String(book.number ?? ''));
   const [isVolume, setIsVolume] = useState(book.volumeNumber != null);
   const [volume, setVolume] = useState(String(book.volumeNumber ?? ''));
+  const [volumeEnd, setVolumeEnd] = useState(String(book.volumeNumberEnd ?? ''));
   const [end, setEnd] = useState(String(book.numberEnd ?? book.number ?? ''));
   const [title, setTitle] = useState(book.metadata?.title || book.name || '');
   const [busy, setBusy] = useState(false);
@@ -235,15 +236,17 @@ function ChapterEditModal({ book, onClose, onSaved, onLookup }: { book: Book; on
     if (!reset && (!number.trim() || !Number.isFinite(n) || n! < 0 || n! > 100000)) { toast(tr('Chapter number must be a number'), 'error'); return; }
     if (!reset && isVolume && (!volume.trim() || !end.trim() || !Number.isFinite(Number(volume))
       || Number(volume) <= 0 || Number(volume) > 100000 || !Number.isFinite(Number(end))
-      || Number(end) < n! || Number(end) > 100000 || Number(end) - n! > 1000)) {
+      || Number(end) < n! || Number(end) > 100000 || Number(end) - n! > 1000
+      || (volumeEnd.trim() && (!Number.isFinite(Number(volumeEnd)) || Number(volumeEnd) < Number(volume) || Number(volumeEnd) > 100000)))) {
       toast(tr('Enter a volume number and a valid first and last chapter (at most 1000 apart).'), 'error'); return;
     }
     setBusy(true);
     try {
       const r = await api<{ affectedUsers: number }>(`/api/admin/books/${book.id}/meta`, {
         method: 'PUT',
-        json: reset ? { number: null, title: null, volumeNumber: null, numberEnd: null }
-          : { number: n, title, volumeNumber: isVolume ? Number(volume) : null, numberEnd: isVolume ? Number(end) : null },
+        json: reset ? { number: null, title: null, volumeNumber: null, numberEnd: null, volumeNumberEnd: null }
+          : { number: n, title, volumeNumber: isVolume ? Number(volume) : null, numberEnd: isVolume ? Number(end) : null,
+            volumeNumberEnd: isVolume && volumeEnd.trim() ? Number(volumeEnd) : null },
       });
       toast(r.affectedUsers > 1 ? tr('Saved. {n} readers had finished this chapter.', { n: r.affectedUsers })
         : r.affectedUsers === 1 ? tr('Saved. 1 reader had finished this chapter.') : tr('Saved'), 'success');
@@ -269,6 +272,8 @@ function ChapterEditModal({ book, onClose, onSaved, onLookup }: { book: Book; on
         <button className="btn-key mt-3" onClick={() => onLookup(Number(volume) > 0 ? Number(volume) : undefined)}>{tr('Look up chapter ranges')}</button>
         <label htmlFor="book-volume" className="mb-1 mt-3 block text-xs font-semibold uppercase tracking-wider text-fog-500">{tr('Volume number')}</label>
         <input id="book-volume" value={volume} onChange={(e) => setVolume(e.target.value)} inputMode="decimal" className={fld} />
+        <label htmlFor="book-volume-end" className="mb-1 mt-3 block text-xs font-semibold uppercase tracking-wider text-fog-500">{tr('Last volume (omnibus only)')}</label>
+        <input id="book-volume-end" value={volumeEnd} onChange={e => setVolumeEnd(e.target.value)} inputMode="decimal" className={fld} />
         <p className="mt-2 text-xs leading-relaxed text-fog-400">{tr('Enter the chapters this volume contains. They will not be downloaded again. Finishing the volume advances chapter progress to its last chapter.')}</p>
       </>}
       <label htmlFor="book-number" className="mb-1 mt-3 block text-xs font-semibold uppercase tracking-wider text-fog-500">{isVolume ? tr('First chapter') : tr('Chapter number')}</label>

@@ -97,3 +97,19 @@ test('upstream failure is actionable and leaves all mappings alone', { skip }, a
   assert.match(response.json().error, /MangaDex lookup failed/);
   assert.equal((await q("SELECT * FROM book_overrides WHERE book_id LIKE 'volume-%'")).length, 0);
 });
+
+test('omnibus spans survive lookup, catalog reads and ordinary metadata edits', { skip }, async () => {
+  const response = await request('POST', 'volume-ranges', { mappings: [{ ...mappings[0], volumeEnd: 2, last: 4.1 }] });
+  assert.equal(response.statusCode, 200, response.body);
+  const lookup = await request('GET', 'volume-lookup');
+  assert.equal(lookup.json().books.find((b: any) => b.id === 'volume-a').volumeNumberEnd, 2);
+  assert.equal(lookup.json().books.find((b: any) => b.id === 'volume-a').numberEnd, 4.1);
+  const edit = (payload: unknown) => app.inject({ method: 'PUT', url: '/api/admin/books/volume-a/meta', headers: admin, payload });
+  assert.equal((await edit({ title: 'Omnibus' })).statusCode, 200);
+  assert.equal((await q("SELECT volume_number_end FROM book_overrides WHERE book_id='volume-a'"))[0].volume_number_end, 2);
+  assert.equal((await edit({ volumeNumberEnd: 0.5 })).statusCode, 400);
+  const { owned } = await import('../src/lib/ownedCatalog');
+  const books = (await owned.seriesBooks({ userId: adminId, libraryIds: null, maxAgeRating: null }, S, 0, 50)).content;
+  assert.equal(books.find((b: any) => b.id === 'volume-a').volumeNumberEnd, 2);
+  assert.equal((await edit({ number: null, title: null, volumeNumber: null, numberEnd: null, volumeNumberEnd: null })).statusCode, 200);
+});

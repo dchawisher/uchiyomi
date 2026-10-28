@@ -94,6 +94,7 @@ const booksSrc = (ctx: ViewCtx, p: Params, alias = 'bv') => `(
          COALESCE(ov.number, b.number) AS number,
          ${rangeEnd('b', 'ov')} AS number_end,
          ov.volume_number,
+         ov.volume_number_end,
          ${alternateOf('b')} AS alternate_of,
          EXISTS (SELECT 1 FROM series_part_extras pe WHERE pe.series_id = b.series_id AND pe.number = COALESCE(ov.number, b.number)) AS keep_separate,
          COALESCE(ov.title,  b.title)  AS title
@@ -203,6 +204,7 @@ function bookDto(r: any) {
     alternateOf: r.alternate_of ?? null,
     keepSeparate: r.keep_separate === true,
     volumeNumber: r.volume_number == null ? null : Number(r.volume_number),
+    volumeNumberEnd: r.volume_number_end == null ? null : Number(r.volume_number_end),
     media: { pagesCount: r.pages ?? 0, mediaType: 'application/vnd.comicbook+zip', status: 'READY' },
     metadata: { title: r.title, number: numberText(num, end), numberSort: num, summary: '', releaseDate: released },
     // The chapter's own name as its source gave it (lib/library.ts chapterName), null when it had none. NOT

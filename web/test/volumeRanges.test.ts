@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { chapterLabel, mixedBookCountText } from '../lib/format';
 
 test('a volume label stays separate from its chapter range, regardless of its filename', () => {
+  assert.equal(chapterLabel({ volumeNumber: 1, volumeNumberEnd: 2, number: 1, numberEnd: 4.1 }), 'Vol. 1–2 · Ch. 1–4.1');
   assert.equal(chapterLabel({ volumeNumber: 2, number: 9, numberEnd: 16, name: 'Chapter 2' }), 'Vol. 2 · Ch. 9–16');
   assert.equal(chapterLabel({ volumeNumber: 3, number: 17, numberEnd: 17, name: 'Vol. 3' }), 'Vol. 3 · Ch. 17');
   assert.equal(chapterLabel({ number: 9, numberEnd: 16, name: 'Collected chapters' }), 'Ch. 9–16');
