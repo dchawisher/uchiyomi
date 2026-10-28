@@ -26,7 +26,7 @@ import { beginRun, endRun, stopRequested, type RunCard } from './downloadJobs';
 import { say } from './said';
 import { withOrigin } from './downloadActivity';
 import { decideNumbering, folderBusy, numberedChapters, renumberRunning, resumeRenumber, settleNumbering, NUMBERING_COLUMNS, type Settled } from './numbering';
-import { aliasParts, partRulesApply } from './partAlias';
+
 import { coveredParts } from './chapterParts';
 import { atHiddenNumber, isListedNotice } from './noticeChapters';
 import { hiddenNumbersOf } from './hiddenChapters';
@@ -491,27 +491,8 @@ async function visitSeries(seriesId: string, maxNew: number, opts: UpdateOpts): 
   // another source anyway, the stale one being in `refusing`.
   const followOrder = [...followed.filter((f) => !stale.has(f.source)), ...followed.filter((f) => stale.has(f.source))].map((f) => f.source);
   const chooseOpts = { sourceRank: rankSources(priority, followOrder), ...language };
-  // Chapter parts that sources number or split differently (lib/partAlias.ts): another site's N.1 / N.6 for the N /
-  // N.5 on disk is renumbered onto them (R1), and another site's split of a chapter already here (R2), or of a new one
-  // whose first-ranked source splits it another way (R3), is `covered` --
-  // listed and shown on the series page, fetchable by hand, never fetched by the sweep nor counted as missing. Here,
-  // before the chooser, so the chooser, the floor, the have-set and the stored listing all see one numbering. Not
-  // under posting order, nor while the numbering is in question. The disk is what the have-set below calls held,
-  // override-aware, with each file's origin; a read that fails leaves the listing as the sources gave it.
-  // Reintroduce by dropping this block: "a follower's other numbering of the parts on disk" in updater.int.test.ts
-  // downloads 12.1 and 12.6.
-  let covered = new Set<number>();
-  if (partRulesApply(s) && !s.full_chapters) {
-    const disk = await q<{ number: number; source_id: string | null }>(
-      `SELECT COALESCE(ov.number, b.number) AS number, b.source_id FROM lib_books b LEFT JOIN book_overrides ov ON ov.book_id = b.id
-        WHERE b.series_id = $1 AND ${heldBooks('b')}`, [seriesId]).catch(() => null);
-    if (disk) {
-      ({ tagged, covered } = aliasParts({
-        tagged, held: disk.map((r) => ({ number: Number(r.number), sourceId: r.source_id })), primary: s.source_id ?? null,
-        sourceRank: chooseOpts.sourceRank,
-      }));
-    }
-  }
+  // Grouping is decided by the shared series policy, including explicit manual associations.
+  const covered = new Set<number>();
   // v0.79.0: a followed source that could not be asked this run (cooling, resting) or did not answer keeps the chapters it
   // listed last time. The listing was rewritten from the sources that answered, so a main in a cooldown lost every number
   // only it lists: "{n} behind" and the finishing sweep's count dropped, the series read caught up, and its chapters
@@ -536,7 +517,7 @@ async function visitSeries(seriesId: string, maxNew: number, opts: UpdateOpts): 
   }
   const { releases, waiting: held } = chooseReleases(tagged, prefs, chooseOpts);
   const sourceCovered = new Set(covered);
-  if (s.full_chapters) for (const n of await coveredParts(seriesId, releases.filter(r => !held.includes(r.number)).map(r => r.number), q, tagged.map(r => r.number))) covered.add(n);
+  for (const n of await coveredParts(seriesId, releases.filter(r => !held.includes(r.number)).map(r => r.number), q, tagged.map(r => r.number), releases)) covered.add(n);
 
   // A series added as "latest N" carries a floor, and what the source lists below it is not this job's
   // business: the sweep exists to fetch new releases, and the oldest-first loop below would otherwise spend

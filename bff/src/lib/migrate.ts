@@ -1,5 +1,6 @@
 import type { PoolClient } from 'pg';
 import { pool, one } from './db';
+import { chapterGroupingSchema } from './chapterGroupingSchema';
 import { env } from '../env';
 import { MANGADEX_LANGS } from './lang';
 import { typeFromGenres, SERIES_TYPE_FROM } from './seriesTypeSignals';
@@ -2127,6 +2128,7 @@ async function seedBackupExtensions(c: PoolClient): Promise<void> {
  * Run-once data migrations, oldest first. Ids are permanent: renaming one re-runs it everywhere.
  */
 const DATA_MIGRATIONS: { id: string; run: (c: PoolClient) => Promise<void> }[] = [
+  { id: 'hawisher-005-chapter-grouping', run: async c => { await c.query(chapterGroupingSchema); } },
   {
     id: 'hawisher-004-all-ages-rating',
     run: async (c) => {

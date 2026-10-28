@@ -198,6 +198,7 @@ export interface Series {
   /** Whether the scheduled updater fetches new chapters for this series. */
   autoUpdate?: boolean;
   fullChapters?: boolean;
+  partDetection?: 'off' | 'careful' | 'balanced' | 'aggressive';
   partExtras?: number[];
   /** The folder on disk, relative to the library root. Only sent to admins, for the rename control. */
   folder?: string;
@@ -309,6 +310,7 @@ export interface BookMetadata {
 }
 
 export interface Book {
+  grouping?: { role: 'chapter' | 'part' | 'first' | 'extra'; parentNumber: number | null; manual: boolean; requiredPages: number | null; parentIsFirst: boolean } | null;
   alternateOf?: string | null;
   keepSeparate?: boolean;
   id: string;

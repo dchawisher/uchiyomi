@@ -23,7 +23,7 @@ function page<T>(content: T[], total: number, p: number, size: number): Page<T> 
 // ⚠️ Every name here must ALSO be produced by the inner SELECT of `seriesSrcWith` below, which enumerates
 // its columns explicitly. Adding one to only one of the two makes EVERY series read fail with "column does
 // not exist" -- the series page, the library grid, search, the home rails, OPDS, all of it.
-const SERIES_COLS = 'id, title, summary, status, genres, author, age_rating, reading_direction, books_count, cover_book_id, web, created_at, latest_mtime, auto_update, library_id, library_pinned, source_chapters, source_missing, source_checked_at, source_id, lang, work_id, full_chapters, part_extras';
+const SERIES_COLS = 'id, title, summary, status, genres, author, age_rating, reading_direction, books_count, cover_book_id, web, created_at, latest_mtime, auto_update, library_id, library_pinned, source_chapters, source_missing, source_checked_at, source_id, lang, work_id, full_chapters, part_extras, part_detection';
 
 /**
  * The one place a series is read from.
@@ -52,10 +52,13 @@ const seriesSrcWith = (gate: Gate, ctx: ViewCtx, p: Params, alias: string) => `(
          -- The stored count less the notice chapters this series hides (lib/noticeChapters.ts), so every badge,
          -- filter and sort over it, and the Komga-compatible series Mihon's tracker reads, counts what is listed.
          (${visibleBookCount('s')} -
-           (SELECT count(*) FROM lib_books fp_count WHERE fp_count.series_id = s.id
-            AND NOT ${noticeBook('fp_count.id')} AND ${alternateOf('fp_count')} IS NOT NULL))::int AS books_count,
+           (WITH groups AS MATERIALIZED (SELECT * FROM chapter_grouping(s.id))
+            SELECT count(*) FROM lib_books fp_count LEFT JOIN groups fp_cg ON fp_cg.number=COALESCE(
+              (SELECT number FROM book_overrides WHERE book_id=fp_count.id),fp_count.number)
+            WHERE fp_count.series_id = s.id
+            AND NOT ${noticeBook('fp_count.id')} AND ${alternateOf('fp_count', 'fp_cg')} IS NOT NULL))::int AS books_count,
          s.cover_book_id, s.web, s.created_at, s.latest_mtime,
-         s.auto_update, s.library_id, s.library_pinned, s.full_chapters,
+         s.auto_update, s.library_id, s.library_pinned, s.full_chapters, s.part_detection,
          ARRAY(SELECT number FROM series_part_extras WHERE series_id = s.id ORDER BY number) AS part_extras,
          -- What the source last said, so "how far behind is this?" is a column rather than a network call.
          -- Kept in step with SERIES_COLS above; see the warning there.
@@ -95,7 +98,10 @@ const booksSrc = (ctx: ViewCtx, p: Params, alias = 'bv') => `(
          ${rangeEnd('b', 'ov')} AS number_end,
          ov.volume_number,
          ov.volume_number_end,
-         ${alternateOf('b')} AS alternate_of,
+         ${alternateOf('b', 'cg')} AS alternate_of,
+         CASE WHEN cg.role IS NULL THEN NULL ELSE jsonb_build_object('role',cg.role,'parentNumber',cg.parent_number,'manual',cg.manual,
+           'requiredPages',cg.required_pages,'parentIsFirst',cg.parent_is_first)
+           END AS grouping,
          EXISTS (SELECT 1 FROM series_part_extras pe WHERE pe.series_id = b.series_id AND pe.number = COALESCE(ov.number, b.number)) AS keep_separate,
          COALESCE(ov.title,  b.title)  AS title
     FROM lib_books b
@@ -104,6 +110,7 @@ const booksSrc = (ctx: ViewCtx, p: Params, alias = 'bv') => `(
     -- soft delete, merge, and now library access -- reaches chapters only through here.
     JOIN lib_series s ON s.id = b.series_id AND ${visible('s', ctx, p)}
     LEFT JOIN book_overrides ov ON ov.book_id = b.id
+    LEFT JOIN LATERAL chapter_grouping(b.series_id) cg ON cg.number=COALESCE(ov.number,b.number)
     -- A notice chapter the admin hides (lib/noticeChapters.ts) is not a chapter to anyone: not listed, not opened
     -- by id, not next or previous, not in the offline plan or the Komga-compatible API. By the effective number.
    WHERE ${noticeShown('s', 'b', 'ov')}
@@ -165,6 +172,7 @@ function seriesDto(r: any) {
     // whether the scheduled updater pulls new chapters for this series; settable from the series page
     autoUpdate: r.auto_update !== false,
     fullChapters: r.full_chapters === true,
+    partDetection: r.full_chapters === true ? r.part_detection : 'off',
     partExtras: (r.part_extras ?? []).map(Number),
     // What the source said when it was last asked. ONE nested object, present or null, because "never
     // checked" and "checked, nothing new" are genuinely different states and a flat `sourceMissing: 0`
@@ -203,6 +211,7 @@ function bookDto(r: any) {
     numberEnd: end,
     alternateOf: r.alternate_of ?? null,
     keepSeparate: r.keep_separate === true,
+    grouping: r.grouping ?? null,
     volumeNumber: r.volume_number == null ? null : Number(r.volume_number),
     volumeNumberEnd: r.volume_number_end == null ? null : Number(r.volume_number_end),
     media: { pagesCount: r.pages ?? 0, mediaType: 'application/vnd.comicbook+zip', status: 'READY' },

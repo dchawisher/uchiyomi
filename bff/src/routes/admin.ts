@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { q, one, tx } from '../lib/db';
 import { volumeLookupRoutes } from './volumeLookup';
 import { applyPartListing } from '../lib/chapterParts';
+import { checkGroupingPages } from '../lib/chapterGroupingPages';
 import { postingOrderSeries, POSTING_ORDER_REFUSAL } from '../lib/numbering';
 import numberingRoutes from './numbering';
 import { lastNumber } from '../lib/chapterRanges';
@@ -1568,6 +1569,7 @@ export default async function adminRoutes(app: FastifyInstance) {
       if (!s.length) return false;
       if (b.data.keepSeparate) await qq('INSERT INTO series_part_extras (series_id, number) VALUES ($1, $2) ON CONFLICT DO NOTHING', [id, b.data.number]);
       else await qq('DELETE FROM series_part_extras WHERE series_id = $1 AND number = $2::real', [id, b.data.number]);
+      await qq('DELETE FROM series_chapter_overrides WHERE series_id=$1 AND number=$2::real', [id,b.data.number]);
       await applyPartListing(qq, id);
       return true;
     });
@@ -1576,11 +1578,41 @@ export default async function adminRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  app.post('/api/admin/series/:id/chapter-page-counts', async (req, reply) => {
+    const {id}=req.params as {id:string};
+    if (!(await getSeriesRow(id))) return reply.code(404).send({error:'not_found'});
+    return checkGroupingPages(id);
+  });
+
+  app.put('/api/admin/series/:id/chapter-grouping', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const parsed = z.object({ number: z.number().min(0).max(1e6),
+      role: z.enum(['auto','extra','part','first','complete']), parentNumber: z.number().int().min(0).max(1e6).nullable().optional(),
+    }).strict().safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_request' });
+    const b = parsed.data;
+    if ((b.role==='part' && (b.parentNumber==null || Number.isInteger(b.number)))
+      || (['first','complete'].includes(b.role) && !Number.isInteger(b.number))) return reply.code(400).send({ error:'bad_request' });
+    const changed = await tx(async qq => {
+      if (!(await qq('SELECT id FROM lib_series WHERE id=$1 FOR UPDATE',[id])).length) return false;
+      await qq('DELETE FROM series_part_extras WHERE series_id=$1 AND number=$2::real',[id,b.number]);
+      await qq('DELETE FROM series_chapter_overrides WHERE series_id=$1 AND number=$2::real',[id,b.number]);
+      if (b.role!=='auto') await qq(`INSERT INTO series_chapter_overrides (series_id,number,role,parent_number) VALUES ($1,$2,$3,$4)`,
+        [id,b.number,b.role,b.role==='first'?b.number:b.role==='part'?b.parentNumber:null]);
+      await applyPartListing(qq,id);
+      return true;
+    });
+    if (!changed) return reply.code(404).send({ error:'not_found' });
+    await logAudit('series.settings',{userId:userIdOf(req),detail:{seriesId:id,chapterGrouping:b},req});
+    return {ok:true};
+  });
+
   app.patch('/api/admin/series/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
     const b = z.object({
       autoUpdate: z.boolean().optional(),
       fullChapters: z.boolean().optional(),
+      partDetection: z.enum(['off','careful','balanced','aggressive']).optional(),
       scanlatorPrefs: prefsSchema.nullable().optional(),
       sourcePrefs: z.object({ priority: z.array(z.string().min(1).max(120)).max(100) }).nullable().optional(),
       borrowNames: z.boolean().nullable().optional(),
@@ -1592,13 +1624,13 @@ export default async function adminRoutes(app: FastifyInstance) {
     if (!b.success) return reply.code(400).send({ error: 'bad_request' });
     if (b.data.autoUpdate === undefined && b.data.scanlatorPrefs === undefined && b.data.sourcePrefs === undefined
         && b.data.borrowNames === undefined && b.data.lang === undefined && b.data.chapterFloor === undefined
-        && b.data.hideNotices === undefined && b.data.fullChapters === undefined) {
+        && b.data.hideNotices === undefined && b.data.fullChapters === undefined && b.data.partDetection === undefined) {
       return reply.code(400).send({ error: 'bad_request', message: 'Nothing to change.' });
     }
     const row = await getSeriesRow(id);
     if (!row) return reply.code(404).send({ error: 'not_found' });
     // Every refusal before the first write: the fields below are written one by one.
-    if (b.data.fullChapters) {
+    if (b.data.fullChapters || (b.data.partDetection !== undefined && b.data.partDetection !== 'off')) {
       const state = await one<{ busy: boolean }>(`SELECT numbering = 'posting_order' OR numbering_pending IS NOT NULL OR renumber_plan IS NOT NULL AS busy FROM lib_series WHERE id = $1`, [id]);
       if (state?.busy) return reply.code(409).send({ error: 'numbering_conflict', message: 'Finish chapter numbering before enabling full chapters and split releases.' });
     }
@@ -1708,17 +1740,20 @@ export default async function adminRoutes(app: FastifyInstance) {
       const effective = await seriesHidesNotices(id);
       notices = { hideNotices: b.data.hideNotices, hideNoticesEffective: effective, hiddenNotices: effective ? await hiddenCount(id) : 0 };
     }
-    if (b.data.fullChapters !== undefined) {
+    if (b.data.fullChapters !== undefined || b.data.partDetection !== undefined) {
       await tx(async qq => {
-        await qq('UPDATE lib_series SET full_chapters = $2 WHERE id = $1', [id, b.data.fullChapters]);
+        await qq('UPDATE lib_series SET full_chapters = $2 WHERE id = $1', [id, b.data.partDetection !== undefined ? b.data.partDetection !== 'off' : b.data.fullChapters]);
+        if (b.data.partDetection && b.data.partDetection !== 'off') await qq('UPDATE lib_series SET part_detection=$2 WHERE id=$1',[id,b.data.partDetection]);
         await applyPartListing(qq, id);
       });
       detail.fullChapters = b.data.fullChapters;
+      detail.partDetection = b.data.partDetection;
     }
     await logAudit('series.settings', { userId: userIdOf(req), detail, req });
     return {
       ok: true, ...(b.data.autoUpdate !== undefined ? { autoUpdate: b.data.autoUpdate } : {}),
       ...(b.data.fullChapters !== undefined ? { fullChapters: b.data.fullChapters } : {}),
+      ...(b.data.partDetection !== undefined ? { partDetection: b.data.partDetection } : {}),
       ...(b.data.lang !== undefined ? { lang } : {}), ...(caughtUp ? { chapterFloor: caughtUp } : {}),
       ...(notices ?? {}),
     };
