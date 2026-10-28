@@ -142,5 +142,7 @@
   "Manage users with {name}.": "Manage users with {name}.",
   "Orphaned Files": "Orphaned Files",
   "Enable slow archive": "Enable slow archive",
-  "About {label}": "About {label}"
+  "About {label}": "About {label}",
+  "Fix double page": "Fix double page",
+  "Page in chapter": "Page in chapter"
 }

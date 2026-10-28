@@ -8,7 +8,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { pairSlides, pageHeight, isWide, type SpreadItem } from '../lib/readerSpread';
+import { pairSlides, fixSpreadAnchor, pageHeight, isWide, type SpreadItem } from '../lib/readerSpread';
 import { DEFAULT_PREFS, LOOK_KEYS, migratePrefs } from '../lib/readerPrefs';
 
 const ROOT = join(__dirname, '..');
@@ -237,25 +237,66 @@ test('shift: random chapters keep every page once, in order, and the wide-page r
   }
 });
 
-test('shift pairs page 1 with page 2, and a wide page still restarts the pairing', () => {
+test('shift pairs page 1 with page 2 and also flips the run after a combined spread', () => {
   const its = (spec: string): SpreadItem[] => [...spec].map((c, k) => ({ ci: 0, firstOfChapter: k === 0, ...(c === 'w' ? { width: 2, height: 1 } : { width: 1, height: 2 }) }));
   assert.deepEqual(pairSlides(its('pppp'), true, { shift: true }).slides, [[0, 1], [2, 3]]);
   assert.deepEqual(pairSlides(its('pppp'), true).slides, [[0], [1, 2], [3]]);
-  assert.deepEqual(pairSlides(its('pppwppp'), true, { shift: true }).slides, [[0, 1], [2], [3], [4, 5], [6]]);
+  assert.deepEqual(pairSlides(its('pppwppp'), true, { shift: true }).slides, [[0, 1], [2], [3], [4], [5, 6]]);
 });
 
-test('the reader re-pairs when Shift is toggled: spreadShift is in the slides memo and re-anchors the track', () => {
+test('the reader re-pairs by file and re-anchors the track to the explicit correction target', () => {
   const src = code(readFileSync(join(ROOT, 'app/reader/page.tsx'), 'utf8'));
-  // v0.77.1 merge: v0.77.0's Join split double pages (prefs.joinSplit) is in the same memo now, after spreadShift.
-  assert.match(src, /\[flat, prefs\.mode, prefs\.spread, splitTrack, rightFirst, spreadShift, prefs\.joinSplit\]/);
-  assert.match(src, /\}, \[prefs\.spread, spreadShift\]\);/);
+  assert.match(src, /\[flat, prefs\.mode, prefs\.spread, splitTrack, rightFirst, chapterShifts, prefs\.joinSplit\]/);
+  assert.match(src, /const anchor = pendingPairAnchor\.current \?\? current/);
+  assert.match(src, /\}, \[pairingKey\]\);/);
 });
 
 test('shift preserves explicit detected joins and has no effect outside double spread mode', () => {
   const items = parse('pppp').map((p, i) => ({ ...p, number: i + 1 }));
   items[0] = { ...items[0], join: 'rtl' };
   const paired = pairSlides(items, true, { shift: true, joinSplit: true });
-  assert.deepEqual(paired.slides, [[0, 1], [2, 3]]);
-  assert.deepEqual(paired.joined, [true, false]);
+  assert.deepEqual(paired.slides, [[0, 1], [2], [3]]);
+  assert.deepEqual(paired.joined, [true, false, false]);
   assert.deepEqual(pairSlides(items, false, { shift: true }).slides, [[0], [1], [2], [3]]);
+});
+
+test('repeated fixes each move the first page back exactly one until the chapter boundary', () => {
+  const items = parse('pppppppppp').map((p, i) => ({ ...p, number: i + 1 }));
+  let shift = false;
+  let paired = pairSlides(items, true, { shift });
+  let slide = paired.slideOf[5];
+  assert.deepEqual(paired.slides[slide], [5, 6]);
+  for (const expected of [[4, 5], [3, 4], [2, 3], [1, 2], [0, 1], [0], [0, 1]]) {
+    const anchor = fixSpreadAnchor(items, paired, slide);
+    shift = !shift;
+    paired = pairSlides(items, true, { shift });
+    slide = paired.slideOf[anchor];
+    assert.deepEqual(paired.slides[slide], expected);
+  }
+});
+
+test('fixing at a wide or joined boundary alternates the next solo page and pair', () => {
+  for (const joined of [false, true]) {
+    const items = parse(joined ? 'pppppppp' : 'pppwpppp').map((p, i) => ({ ...p, number: i + 1 }));
+    if (joined) items[2].join = 'rtl';
+    let shift = false;
+    let paired = pairSlides(items, true, { shift, joinSplit: true });
+    let slide = paired.slideOf[4];
+    assert.deepEqual(paired.slides[slide], [4, 5]);
+    for (const expected of [[4], [4, 5], [4]]) {
+      const anchor = fixSpreadAnchor(items, paired, slide);
+      assert.equal(anchor, 4);
+      shift = !shift;
+      paired = pairSlides(items, true, { shift, joinSplit: true });
+      slide = paired.slideOf[anchor];
+      assert.deepEqual(paired.slides[slide], expected);
+    }
+  }
+});
+
+test('loaded chapters keep independent assignments and fixes never step into the preceding chapter', () => {
+  const items = parse('pppp|pppp');
+  const paired = pairSlides(items, true, { shiftForChapter: (ci) => ci === items[4].ci });
+  assert.deepEqual(paired.slides, [[0], [1, 2], [3], [4, 5], [6, 7]]);
+  assert.equal(fixSpreadAnchor(items, paired, paired.slideOf[4]), 4);
 });

@@ -126,7 +126,7 @@ test('the page list asks for spreads only with joining on, and a join found late
   assert.match(src, /const first = await loadChapter\(bookId, loadPrefs\(\)\.joinSplit\);/);
   assert.match(src, /const ch = await loadChapter\(next\.id, prefs\.joinSplit\);/);
   assert.match(src, /\/pages\$\{spreads \? '\?spreads=1' : ''\}/);
-  assert.match(src, /joinSplit: prefs\.joinSplit \}\)/, 'pairSlides is not told whether joining is on');
+  assert.match(src, /joinSplit: prefs\.joinSplit,?\s*\}\)/, 'pairSlides is not told whether joining is on');
   // The joins effect: two slides made one before the page being read would otherwise move the reader a page on.
   const eff = src.slice(src.indexOf('laidOutJoins.current === joinedAt'), src.indexOf('}, [joinedAt]);'));
   assert.ok(eff.length > 0, 'the joins effect is gone');

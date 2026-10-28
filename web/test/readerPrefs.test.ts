@@ -24,6 +24,8 @@ const mem = new Map<string, string>();
 
 /** What the stubbed server answers a GET with, and a handle on the PUT so a test can hold it in flight. */
 let serverReader: Record<string, unknown> = { theme: 'amoled' };
+let serverSeries: Record<string, unknown> = {};
+let lastPut: any;
 const calls: string[] = [];
 let releasePut: (() => void) | null = null;
 globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
@@ -31,10 +33,11 @@ globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) =>
   const method = init?.method ?? 'GET';
   calls.push(`${method} ${url.replace(/\?.*$/, '')}`);
   if (method === 'PUT') {
+    lastPut = JSON.parse(String(init?.body));
     await new Promise<void>((resolve) => { releasePut = resolve; });
     return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
   }
-  return new Response(JSON.stringify({ reader: serverReader }), { status: 200, headers: { 'content-type': 'application/json' } });
+  return new Response(JSON.stringify({ reader: serverReader, readerSeries: serverSeries }), { status: 200, headers: { 'content-type': 'application/json' } });
 }) as any;
 
 let prefs: typeof import('../lib/readerPrefs');
@@ -45,6 +48,29 @@ before(async () => {
 const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
 const gets = () => calls.filter((c) => c.startsWith('GET')).length;
 const puts = () => calls.filter((c) => c.startsWith('PUT')).length;
+
+test('file pairing is pinned on double-mode opening, inherits prospectively, and survives sync beyond the recent-series cap', async (t) => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  t.after(() => { mock.timers.reset(); mem.clear(); serverSeries = {}; });
+  assert.equal(prefs.fileSpreadShift(prefs.loadSeriesPrefs('series'), 'A'), false);
+  assert.equal(mem.has('yomi_rs_series'), false, 'a fallback read does not initialize a single-mode or preloaded file');
+  assert.equal(prefs.rememberFileSpreadShift('series', 'A'), false);
+  prefs.rememberFileSpreadShift('series', 'A', true);
+  assert.equal(prefs.rememberFileSpreadShift('series', 'B'), true, 'a newly opened file inherits the last choice');
+  prefs.rememberFileSpreadShift('series', 'B', false);
+  assert.equal(prefs.rememberFileSpreadShift('series', 'A'), true, 'reopening preserves the old file');
+  assert.equal(prefs.loadSeriesPrefs('series').spreadShift, false, 'reopening does not reset the prospective default');
+  assert.equal(prefs.rememberFileSpreadShift('series', 'C'), false);
+  for (let n = 0; n < 305; n++) mem.set(`yomi_rs_other-${n}`, JSON.stringify({ zoom: 1.2 }));
+  mock.timers.tick(1500);
+  await settle(); await settle();
+  assert.deepEqual(lastPut.readerSeries.series.fileSpreadShifts, { A: true, B: false, C: false });
+  releasePut?.(); releasePut = null;
+  await settle(); await settle(); await settle();
+  serverSeries = { series: { spreadShift: true, fileSpreadShifts: { D: true } } };
+  await prefs.syncPrefsFromServer();
+  assert.deepEqual(prefs.loadSeriesPrefs('series').fileSpreadShifts, { A: true, B: false, C: false, D: true });
+});
 
 test('a pull while a push is pending keeps the local value', async (t) => {
   // The whole bug, end to end. Pick sepia (local write, PUT queued), and before the debounce fires let the

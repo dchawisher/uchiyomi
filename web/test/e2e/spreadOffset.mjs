@@ -1,4 +1,4 @@
-// Per-title double-page pairing offset, against a disposable instance seeded with seed.py --spreads.
+// File-specific double-page pairing corrections, against a disposable instance seeded with seed.py --spreads.
 // BASE=http://127.0.0.1:18140 node test/e2e/spreadOffset.mjs
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -64,13 +64,9 @@ try {
     return [...(slide?.querySelectorAll('img') || [])].map((im) => Number(im.src.match(/\/page\/(\d+)/)?.[1])).sort((a, b) => a - b);
   });
   const toggle = async () => {
-    if (!(await page.$('[data-reader-settings]'))) await page.mouse.click(640, 450);
-    await page.waitForSelector('[data-reader-settings]', { visible: true });
-    await page.locator('[data-reader-settings]').click();
-    console.log('Settings opened');
-    await page.waitForSelector('[data-spread-shift] input', { visible: true });
-    await page.locator('[data-spread-shift] input').click();
-    await page.keyboard.press('Escape');
+    if (!(await page.$('[data-fix-spread]'))) await page.mouse.click(640, 450);
+    await page.waitForSelector('[data-fix-spread]', { visible: true });
+    await page.locator('[data-fix-spread]').click();
     await sleep(900);
   };
   await open(books[0].id);
@@ -84,13 +80,15 @@ try {
   assert.deepEqual(await visible(), [1, 2], 'the title retains the offset after reload');
   await open(books[1].id);
   assert.deepEqual(await visible(), [1, 2], 'the next chapter of the same title retains the offset');
-  await open(books[0].id, 6);
-  assert.ok((await visible()).includes(6), 'page 6 is visible before changing the pairing');
   await toggle();
-  assert.ok((await visible()).includes(6), 'changing the pairing keeps the page being read in view');
+  assert.deepEqual(await visible(), [1], 'the start-of-chapter button switches back to a single page');
+  await open(books[0].id);
+  assert.deepEqual(await visible(), [1, 2], 'changing chapter two does not change the previously opened chapter one');
+  await toggle();
+  assert.deepEqual(await visible(), [1], 'another press applies another correction');
   assert.deepEqual(errors, [], 'no browser runtime errors');
   await page.screenshot({ path: join(OUT, 'reader-offset.png') });
-  console.log('PASS: default, live toggle, per-title persistence, chapter continuation, position preservation and browser errors');
+  console.log('PASS: default, button correction, per-file persistence, prospective inheritance and browser errors');
 } finally {
   await browser.close();
 }

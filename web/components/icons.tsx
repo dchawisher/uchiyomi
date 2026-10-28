@@ -16,6 +16,12 @@ const base = (p: P) => ({
 export const IcHome = (p: P) => (
   <svg {...base(p)}><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /></svg>
 );
+export const IcFixSpread = (p: P) => (
+  <svg {...base(p)} aria-hidden="true">
+    <path d="M4 7h7v11H4zM13 7h7v11h-7z" />
+    <path d="M5 4a10 10 0 0 1 14 0m0-3v3h-3M19 21a10 10 0 0 1-14 0m0 2v-2h3" />
+  </svg>
+);
 export const IcGrid = (p: P) => (
   <svg {...base(p)}><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg>
 );

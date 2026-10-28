@@ -67,7 +67,7 @@ export type Half = 'left' | 'right' | null;
 export function pairSlides(
   items: SpreadItem[],
   spread: boolean,
-  opts: { split?: boolean; rightFirst?: boolean; shift?: boolean; joinSplit?: boolean } = {},
+  opts: { split?: boolean; rightFirst?: boolean; shift?: boolean; shiftForChapter?: (ci: number) => boolean; joinSplit?: boolean } = {},
 ): { slides: number[][]; slideOf: number[]; half: Half[]; joined: boolean[] } {
   const slides: number[][] = [];
   const half: Half[] = [];
@@ -101,11 +101,14 @@ export function pairSlides(
     while (k < items.length) {
       const it = items[k];
       const nxt = items[k + 1];
+      const shift = opts.shiftForChapter?.(it.ci) ?? opts.shift ?? false;
       if (joinAt(k)) { slides.push([k, k + 1]); half.push(null); joined.push(true); k += 2; continue; }
       // `shift`: a chapter file's page 1 is usually a story page, not a cover, and keeping it solo put
       // every later pair one off from how the book was drawn. Shifted, rule 2 is off and page 1 pairs with page 2.
       const soloed =
-        (it.firstOfChapter && !opts.shift) ||  // rule 2
+        (it.firstOfChapter && !shift) ||  // rule 2
+        // Combined spreads start fresh pairing runs, which the fix button must also be able to flip.
+        (!it.firstOfChapter && shift && (isWide(items[k - 1]) || joinAt(k - 2))) ||
         !nxt || nxt.ci !== it.ci ||   // rule 3
         isWide(it) ||                 // rule 4, the wide page itself
         isWide(nxt) ||                // rule 4, the page before a wide one
@@ -121,6 +124,17 @@ export function pairSlides(
   // The FIRST slide that holds a page, so a jump, a resume and a re-anchor land on a split page's first half.
   for (let s = slides.length - 1; s >= 0; s--) for (const k of slides[s]) slideOf[k] = s;
   return { slides, slideOf, half, joined };
+}
+
+/** Move one physical page earlier without crossing a chapter boundary or a combined spread. */
+export function fixSpreadAnchor(items: SpreadItem[], paired: ReturnType<typeof pairSlides>, slide: number): number {
+  const first = paired.slides[slide]?.[0] ?? 0;
+  const previous = first - 1;
+  const page = items[first], before = items[previous];
+  if (!page || !before || before.ci !== page.ci || isWide(page) || isWide(before)
+    || paired.joined[slide] || paired.joined[paired.slideOf[previous]]) return first;
+  if (page.number !== undefined && before.number !== undefined && page.number !== before.number + 1) return first;
+  return previous;
 }
 
 /**

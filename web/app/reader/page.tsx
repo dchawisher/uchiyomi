@@ -1,7 +1,7 @@
 'use client';
 import { ScrollRail, CARD_RAIL } from '@/components/ScrollRail';
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { isWide, joinedOrder, pageHeight, pairSlides, type WidePages } from '@/lib/readerSpread';
+import { isWide, joinedOrder, pageHeight, pairSlides, fixSpreadAnchor, type WidePages } from '@/lib/readerSpread';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -30,7 +30,7 @@ import { getOfflineChapter, getPageBlob, queueProgress, noteOfflineProgress, lis
 import { applyMarks, markOf, saveMark, spreadOptions, withMark, type SpreadMark, type SpreadOption } from '@/lib/spreadMarks';
 import { applyCover, clearCover } from '@/lib/theme';
 import { COLOR_FILTER, glide, loadDevicePrefs, saveDevicePrefs, type DevicePrefs } from '@/lib/readerDevice';
-import { ReaderPrefs, loadPrefs, savePrefs, loadSeriesPrefs, saveSeriesPrefs, syncPrefsFromServer, THEME_FILTER, loadSourcePrefs, saveSourcePrefs, clearSourcePrefs, globalPrefsChange, seriesPinChange, titleLook, mergePulled, rememberSeriesSource, seriesSourceOf, rememberSeriesType, seriesTypeOf, rememberLibraryLook, libraryLookOf, type LibraryLook } from '@/lib/readerPrefs';
+import { ReaderPrefs, fileSpreadShift, rememberFileSpreadShift, loadPrefs, savePrefs, loadSeriesPrefs, saveSeriesPrefs, syncPrefsFromServer, THEME_FILTER, loadSourcePrefs, saveSourcePrefs, clearSourcePrefs, globalPrefsChange, seriesPinChange, titleLook, mergePulled, rememberSeriesSource, seriesSourceOf, rememberSeriesType, seriesTypeOf, rememberLibraryLook, libraryLookOf, type LibraryLook } from '@/lib/readerPrefs';
 import { guessMode, type AutoGuess } from '@/lib/readerAuto';
 import { translatedSrc, translating, type TranslateStatus } from '@/lib/readerTranslate';
 import { ReaderSettings } from '@/components/ReaderSettings';
@@ -39,7 +39,7 @@ import { PageGrid } from '@/components/PageGrid';
 import { ChapterSheet } from '@/components/ChapterSheet';
 import { SeriesCard } from '@/components/cards';
 import { NextInStory } from '@/components/RelatedRail';
-import { IcChevronLeft, IcChevronRight, IcSliders, IcGrid, IcComment } from '@/components/icons';
+import { IcChevronLeft, IcChevronRight, IcFixSpread, IcSliders, IcGrid, IcComment } from '@/components/icons';
 import { SEAM_H, useChapterTalk, useTalkOn } from '@/lib/comments';
 import { ChapterTalkSheet, TalkKey, TalkStrip } from '@/components/ChapterTalk';
 import { ReaderImg, MissingCaption, ReaderPageRow, SlidePending, SlideRegion, SlideTurned, SlideTurnedPair, DIVIDER_H, measurePage } from '@/components/ReaderPage';
@@ -210,8 +210,9 @@ function ReaderInner() {
   const imgFilter = COLOR_FILTER[device.colorFilter];
   const behavior = glide(device.colorFilter);
   const [zoom, setZoom] = useState(1);
-  // Shift pairs by one page, the title's memory like the zoom (lib/readerSpread.ts pairSlides `shift`).
-  const [spreadShift, setSpreadShift] = useState(false);
+  const [pairingVersion, setPairingVersion] = useState(0);
+  const [pairingReady, setPairingReady] = useState(false);
+  const pendingPairAnchor = useRef<number | null>(null);
   // Translated pages (v0.85.0, lib/readerTranslate.ts): the title's memory like the shift, offered only while the server
   // has the engine and the switch on. Each chapter's translated pages and their stamps, as the server last said.
   const [translate, setTranslate] = useState(false);
@@ -348,10 +349,6 @@ function ReaderInner() {
       if (pin) saveSeriesPrefs(seriesId0, pin);
       return n;
     });
-  };
-  const applyShift = (v: boolean) => {
-    setSpreadShift(v);
-    if (seriesId0) saveSeriesPrefs(seriesId0, { spreadShift: v });
   };
   const applyTranslate = (v: boolean) => {
     setTranslate(v);
@@ -519,7 +516,8 @@ function ReaderInner() {
       setPrefs(look.prefs);
       setAutoApplied(look.autoApplied);
       setZoom(memory.zoom && memory.zoom >= 1 ? memory.zoom : 1);
-      setSpreadShift(memory.spreadShift === true);
+      setPairingVersion((v) => v + 1);
+      pendingPairAnchor.current = null;
       setTranslate(memory.translate === true);
       titleOpen.current = true;
       setReady(true);
@@ -630,9 +628,16 @@ function ReaderInner() {
   // Whole shows the spread, Split shows its two pages one by one (not joined), Rotate turns it on its side.
   // and Shift pairs by one page (`shift`), in the dependencies too -- without it the Shift checkbox changed
   // nothing until the pages did.
+  const chapterShifts = useMemo(
+    () => chapters.map((ch) => fileSpreadShift(loadSeriesPrefs(ch.seriesId), ch.id)),
+    [chapters, pairingVersion, prefs.mode, prefs.spread],
+  );
+  const pairingKey = `${!!prefs.spread}:${chapterShifts.join(',')}`;
   const { slides, slideOf, half, joined } = useMemo(
-    () => pairSlides(flat, prefs.mode === 'paged' && !!prefs.spread, { split: splitTrack, rightFirst, shift: spreadShift, joinSplit: prefs.joinSplit }),
-    [flat, prefs.mode, prefs.spread, splitTrack, rightFirst, spreadShift, prefs.joinSplit],
+    () => pairSlides(flat, prefs.mode === 'paged' && !!prefs.spread, {
+      split: splitTrack, rightFirst, shiftForChapter: (ci) => chapterShifts[ci] ?? false, joinSplit: prefs.joinSplit,
+    }),
+    [flat, prefs.mode, prefs.spread, splitTrack, rightFirst, chapterShifts, prefs.joinSplit],
   );
   // A page brought into frame belongs to the slides it was brought out of: laid out again, they give the pair back.
   useEffect(() => { setFocus(null); }, [slides]);
@@ -990,7 +995,7 @@ function ReaderInner() {
     laidOutSign.current = trackSign;
     laidOutMode.current = prefs.mode;
     laidOutSplit.current = splitTrack;
-    laidOutPairs.current = `${!!prefs.spread}:${spreadShift}`;
+    laidOutPairs.current = pairingKey;
     laidOutJoins.current = joinedAt;
     didInitScroll.current = true;
     // The column's window and anchor from where it now stands: a resume on page 1 scrolls nowhere, so no scroll event
@@ -1053,13 +1058,19 @@ function ReaderInner() {
   // changes which pages it holds, so the track's place pointed at another page and the counter followed it there.
   useLayoutEffect(() => {
     const el = scrollRef.current;
-    const pairs = `${!!prefs.spread}:${spreadShift}`;
+    const pairs = pairingKey;
     if (!el || !didInitScroll.current || prefs.mode !== 'paged' || laidOutPairs.current === pairs) return;
     laidOutPairs.current = pairs;
-    // Through placeTrack (v0.74.0's resize guard), so a resize after the pairs change keeps this slide, not the old one.
-    placeTrack(el, slideOf[current] ?? current);
+    const anchor = pendingPairAnchor.current ?? current;
+    const slide = slideOf[anchor] ?? anchor;
+    placeTrack(el, slide);
+    if (pendingPairAnchor.current !== null) {
+      pendingPairAnchor.current = null;
+      const pages = slides[slide];
+      setCurrent(pages?.[pages.length - 1] ?? anchor);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefs.spread, spreadShift]);
+  }, [pairingKey]);
   // #229: the same for joined spreads. A join the server finds while the chapter is open (the measure runs in the
   // background, and the reader asks again), or Join split double pages switched on or off, makes two slides one or one
   // two before the page being read, and the track's place then points at another page. Put it back on the page being
@@ -1343,6 +1354,11 @@ function ReaderInner() {
     staleTime: 5 * 60 * 1000,
   });
   const activeChapter = chapters[flat[current]?.ci ?? 0];
+  useEffect(() => {
+    // Preloading and single-page reading do not count as opening a file in double-page mode.
+    if (!ready || !pairingReady || !didInitScroll.current || prefs.mode !== 'paged' || !prefs.spread || !activeChapter) return;
+    rememberFileSpreadShift(activeChapter.seriesId, activeChapter.id);
+  }, [ready, pairingReady, colW, tops.length, activeChapter?.id, prefs.mode, prefs.spread]);
   const { data: activeTalk } = useChapterTalk(talkOn ? activeChapter?.id : null);
   /** On a chapter's last page (the last page of a slide, paged): where a paged track shows the chapter's talk. */
   const atChapterEnd = !!flat[current] && (current === flat.length - 1 || flat[current + 1]?.ci !== flat[current].ci);
@@ -1392,6 +1408,19 @@ function ReaderInner() {
     if (prefs.mode === 'vertical') el.scrollTo({ top: tops[i] || 0 });
     else el.scrollTo({ left: trackSign * (slideOf[i] ?? i) * (el.clientWidth || 0) });
   }, [flat.length, prefs.mode, tops, slideOf, trackSign]);
+
+  const fixPairing = () => {
+    if (!pairingReady || prefs.mode !== 'paged' || !prefs.spread) return;
+    const slide = slideNow();
+    const first = slides[slide]?.[0];
+    if (first === undefined) return;
+    const ch = chapters[flat[first].ci];
+    if (!ch) return;
+    pendingPairAnchor.current = fixSpreadAnchor(flat, { slides, slideOf, half, joined }, slide);
+    rememberFileSpreadShift(ch.seriesId, ch.id, !chapterShifts[flat[first].ci]);
+    setFocus(null);
+    setPairingVersion((v) => v + 1);
+  };
 
   /**
    * Mark or un-mark one page by hand, from the page grid.
@@ -1543,7 +1572,10 @@ function ReaderInner() {
     pulledPrefs.current = true;
     // localStorage already painted; this catches up a device that hasn't seen your settings yet. F2 (v0.61.0): with a
     // title open, a late answer changes what is not a look -- the title's own look stays (lib/readerPrefs.ts mergePulled).
-    syncPrefsFromServer().then((p) => setPrefs((cur) => mergePulled(cur, p, titleOpen.current))).catch(() => {});
+    syncPrefsFromServer().then((p) => {
+      setPrefs((cur) => mergePulled(cur, p, titleOpen.current));
+      setPairingVersion((v) => v + 1);
+    }).catch(() => {}).finally(() => setPairingReady(true));
   }, []);
 
   // ---- per-source, then per-series, memory (mode/theme/spread/direction/zoom) ----
@@ -1598,7 +1630,7 @@ function ReaderInner() {
     else if (action === 'fullscreen') toggleFullscreen();
     else if (action === 'menu') setChrome((c) => !c);
     else if (action === 'focus') toggleFocus();
-    else if (action === 'spreadShift' && prefs.mode === 'paged' && prefs.spread) applyShift(!spreadShift);
+    else if (action === 'spreadShift') fixPairing();
     else if (action === 'exit') back();
   };
   const performRef = useRef(perform);
@@ -2135,10 +2167,13 @@ function ReaderInner() {
             // Rotate, on a screen held upright, it is turned on its side as a spread in one file is.
             const isJoined = joined[s] && idxs.length === 2;
             const turnedPair = isJoined && wideMode === 'rotate';
+            const soloSpread = prefs.spread && !focused && idxs.length === 1 && !isWide(flat[idxs[0]]);
             // v0.61.0: one half of a wide page (Wide pages → Split) is a slide of its own, keyed apart from its twin.
             const halfOf = half[s];
             return (
               <div key={halfOf ? `${flat[idxs[0]].key}:${halfOf}` : flat[slideIdxs[0]].key} dir={isJoined ? 'ltr' : undefined} data-joined={isJoined || undefined}
+                data-slide-pages={slideIdxs.map((i) => flat[i].number).join(',')}
+                style={soloSpread ? { paddingInlineStart: '50%' } : undefined}
                 className={`relative flex h-full w-full shrink-0 snap-center snap-always items-center justify-center${isJoined ? '' : ' gap-1'}`}>
                 {turnedPair ? (
                   // Both pages, or neither: half a spread turned on its side is no page at all.
@@ -2199,7 +2234,7 @@ function ReaderInner() {
                     }
                     // Half the slide each, less half the gap -- a joined spread has none.
                     return <SlideRegion key={p.key} src={srcFor(i)!} alt={tr('Page {n}', { n: p.number })} width={w} height={h}
-                      region={region} area={shown.length === 2 ? { w: area.w / 2 - (isJoined ? 0 : 2), h: area.h } : area} zoom={zoom}
+                      region={region} area={shown.length === 2 || soloSpread ? { w: area.w / 2 - (isJoined ? 0 : 2), h: area.h } : area} zoom={zoom}
                       pending={pending} onLoaded={loaded} filter={imgFilter} trimmed={region.l} />;
                   }
                   return (
@@ -2276,6 +2311,12 @@ function ReaderInner() {
                 <div className="min-w-0 flex-1">{titleBlock}</div>
               )}
               <IncognitoTag />
+              {prefs.mode === 'paged' && prefs.spread && (
+                <button type="button" onClick={fixPairing} disabled={!pairingReady} aria-label={tr('Fix double page')} data-fix-spread
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-black/45 text-white backdrop-blur">
+                  <IcFixSpread width={22} height={22} />
+                </button>
+              )}
               {/* Chapter jump, at every width. This was `hidden lg:block`, so on a phone the only way
                   through a series was prev/next, one chapter at a time. */}
               {chapterRefs.length > 0 && (
@@ -2354,13 +2395,14 @@ function ReaderInner() {
                   className="shrink-0 rounded-full px-1.5 py-0.5 text-[11px] tabular-nums text-fog-300 transition hover:bg-white/10 hover:text-white">
                   {chapterPageCount ? `${pageInChapter}/${chapterPageCount}` : `${current + 1}/${total}`}
                 </button>
-                <input type="range" min={0} max={Math.max(0, total - 1)} value={current}
+                <input type="range" min={1} max={Math.max(1, chapterPageCount)} value={Math.max(1, pageInChapter)}
+                  aria-label={tr('Page in chapter')} aria-valuetext={`${pageInChapter}/${chapterPageCount}`} data-chapter-progress
                   onPointerDown={() => setScrubbing(true)}
                   // Let go of focus after a drag: a slider that keeps it owns Space and the arrows, so in the
                   // webtoon column Space stopped scrolling until the controls hid. Tab still reaches it.
                   onPointerUp={(e) => { setScrubbing(false); e.currentTarget.blur(); }}
                   onPointerCancel={() => setScrubbing(false)}
-                  onChange={(e) => jumpTo(Number(e.target.value))}
+                  onChange={(e) => jumpTo(startIndex(flat, flat[current]?.ci ?? 0, Number(e.target.value)))}
                   className="h-1 flex-1 accent-[rgb(var(--accent))]" />
                 <button onClick={goNext} disabled={!nextId} aria-label={armedNext != null ? tr('Tap again to skip to the next chapter') : tr('Next chapter')}
                   className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-white backdrop-blur disabled:opacity-30 ${armedNext != null ? 'bg-accent' : 'bg-black/45'}`}>
@@ -2416,8 +2458,6 @@ function ReaderInner() {
           <ReaderSettings
             prefs={prefs}
             set={setPref}
-            spreadShift={spreadShift}
-            onSpreadShift={applyShift}
             translate={translate}
             onTranslate={trOffer?.available ? applyTranslate : undefined}
             device={device}

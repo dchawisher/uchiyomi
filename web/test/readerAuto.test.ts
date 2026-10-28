@@ -83,7 +83,7 @@ test('the reader applies the title\'s look with `ready`, and no effect lays it o
 test('a pull of the account\'s settings goes through mergePulled, and a mode switch re-anchors (F2, F3)', () => {
   // Reintroduce `setPrefs((cur) => ({ ...cur, ...p }))` on the pull, or delete the mode layout effect: a guard fails.
   const src = code(read('app/reader/page.tsx'));
-  assert.match(src, /syncPrefsFromServer\(\)\.then\(\(p\) => setPrefs\(\(cur\) => mergePulled\(cur, p, titleOpen\.current\)\)\)/, 'the pull is laid over the live look whole');
+  assert.match(src, /syncPrefsFromServer\(\)\.then\(\(p\) => \{\s*setPrefs\(\(cur\) => mergePulled\(cur, p, titleOpen\.current\)\);/, 'the pull is laid over the live look whole');
   const anchor = between(src, 'useLayoutEffect(() => {\n    const el = scrollRef.current;\n    if (!el || !didInitScroll.current || laidOutMode.current === prefs.mode) return;', '}, [prefs.mode]);', 'the mode re-anchor');
   // Through placeTrack since #263, which also records the place a resize keeps (readerResume.test.ts).
   assert.match(anchor, /placeTrack\(el, slideOf\[current\] \?\? current\);/, 'a switch to Paged does not land on the page being read');

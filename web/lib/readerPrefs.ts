@@ -210,7 +210,12 @@ export async function syncPrefsFromServer(): Promise<ReaderPrefs> {
     if (s?.readerSeries && typeof s.readerSeries === 'object') {
       for (const [id, sp] of Object.entries(s.readerSeries)) {
         if (id && sp && typeof sp === 'object') {
-          localStorage.setItem(`yomi_rs_${id}`, JSON.stringify({ ...loadSeriesPrefs(id), ...sp }));
+          const local = loadSeriesPrefs(id);
+          localStorage.setItem(`yomi_rs_${id}`, JSON.stringify({ ...local, ...sp,
+            ...((local.fileSpreadShifts || sp.fileSpreadShifts) ? {
+              fileSpreadShifts: { ...local.fileSpreadShifts, ...sp.fileSpreadShifts },
+            } : {}),
+          }));
         }
       }
     }
@@ -225,7 +230,7 @@ export async function syncPrefsFromServer(): Promise<ReaderPrefs> {
   return loadPrefs();
 }
 
-/** Every per-series override held locally, capped so the settings row can't grow without bound. */
+/** Recent per-series looks, plus durable file pairings for every series that has them. */
 function allSeriesPrefs(): Record<string, SeriesPrefs> {
   const out: Record<string, SeriesPrefs> = {};
   try {
@@ -234,10 +239,14 @@ function allSeriesPrefs(): Record<string, SeriesPrefs> {
       const k = localStorage.key(i);
       if (k?.startsWith('yomi_rs_')) keys.push(k);
     }
-    for (const k of keys.slice(-SERIES_CAP)) {
+    for (const [index, k] of keys.entries()) {
       const id = k.slice('yomi_rs_'.length);
       const v = loadSeriesPrefs(id);
-      if (Object.keys(v).length) out[id] = v;
+      if (index >= keys.length - SERIES_CAP && Object.keys(v).length) out[id] = v;
+      else if (v.fileSpreadShifts && Object.keys(v.fileSpreadShifts).length) {
+        // Opened files must not lose their assignments when the recent-series cache fills.
+        out[id] = { spreadShift: v.spreadShift, fileSpreadShifts: v.fileSpreadShifts };
+      }
     }
   } catch {}
   return out;
@@ -253,6 +262,8 @@ export interface SeriesPrefs {
   spread?: boolean;
   /** double spreads shifted by one page (page 1 pairs with page 2), remembered per title like the zoom. */
   spreadShift?: boolean;
+  /** Captured only when a file opens in double-page mode; existing files never inherit a later default. */
+  fileSpreadShifts?: Record<string, boolean>;
   /** Translated pages (v0.85.0, lib/readerTranslate.ts): this title's pages in the reader's language, remembered per title. */
   translate?: boolean;
   pagedDirection?: ReaderPrefs['pagedDirection'];
@@ -411,6 +422,25 @@ export function saveSeriesPrefs(seriesId: string, partial: SeriesPrefs) {
 }
 
 // ---- per-source memory (the source is the best proxy the app has for the FORMAT) ----
+/** Reading this fallback alone does not mark a file as opened in double-page mode. */
+export function fileSpreadShift(memory: SeriesPrefs, bookId: string): boolean {
+  const saved = memory.fileSpreadShifts?.[bookId];
+  return typeof saved === 'boolean' ? saved : memory.spreadShift === true;
+}
+
+/** Reopening a file preserves its assignment without changing the default for new files. */
+export function rememberFileSpreadShift(seriesId: string, bookId: string, chosen?: boolean): boolean {
+  const memory = loadSeriesPrefs(seriesId);
+  const shift = chosen ?? fileSpreadShift(memory, bookId);
+  if (typeof memory.fileSpreadShifts?.[bookId] !== 'boolean' || chosen !== undefined) {
+    saveSeriesPrefs(seriesId, {
+      fileSpreadShifts: { ...memory.fileSpreadShifts, [bookId]: shift },
+      ...(chosen !== undefined ? { spreadShift: shift } : {}),
+    });
+  }
+  return shift;
+}
+
 /**
  * Reader settings remembered per SOURCE.
  *
