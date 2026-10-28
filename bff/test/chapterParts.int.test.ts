@@ -211,6 +211,11 @@ test('source page counts use URL lists without image downloads, cache successes/
   const state=await q('SELECT number,status FROM series_listing WHERE series_id=$1',[S]);
   assert.equal(state.find((r:any)=>r.number===50.1).status,'covered');
   assert.equal(state.find((r:any)=>r.number===51.1).status,'available');
+  assert.deepEqual([...await policy.coveredParts(S,cs.map(c=>c.number),q,[],cs)].sort(),[50.1,50.2],
+    'fresh source listings without counts must reuse cached counts for the exact release');
+  const otherCopy=cs.map(c=>({...c,sourceId:c.number===50?'different-copy':c.sourceId}));
+  assert.deepEqual([...await policy.coveredParts(S,otherCopy.map(c=>c.number),q,[],otherCopy)],[],
+    'a different copy of the parent must not inherit the old copy’s page count');
   await ok('POST',`/api/admin/series/${S}/chapter-page-counts`,{});
   await ok('POST',`/api/admin/series/${S}/chapter-page-counts`,{});
   assert.equal(pageRequests.length,6,'cached failures must not cause repeated requests');

@@ -43,7 +43,16 @@ export function fullChapterFor(series: string, n: string, incoming = "'[]'::json
 export const alternateBook = (id: string) => `EXISTS (SELECT 1 FROM lib_books fp_part WHERE fp_part.id = ${id} AND ${alternateOf('fp_part')} IS NOT NULL)`;
 
 /** Coverage for automatic downloads: an eligible complete release, or a complete file already held. */
-export async function coveredParts(seriesId: string, available: Iterable<number>, qq: Query = q, knownNumbers: Iterable<number> = [], incoming: Array<{number: number; pages?: number | null}> = []): Promise<Set<number>> {
+export async function coveredParts(seriesId: string, available: Iterable<number>, qq: Query = q, knownNumbers: Iterable<number> = [], incoming: Array<{number: number; pages?: number | null; source?: string; sourceId?: string}> = []): Promise<Set<number>> {
+  // Refreshes often omit page counts. Retain URL-list counts for the exact release, not another
+  // source's copy at the same chapter number, so the next update keeps the manager's download decision.
+  if (incoming.some(c => !c.pages && c.source && c.sourceId)) {
+    const cached = await qq<{source:string; chapter_id:string; pages:number}>(`SELECT pc.source,pc.chapter_id,pc.pages
+      FROM jsonb_array_elements($1::jsonb) c JOIN chapter_page_counts pc
+        ON pc.source=c->>'source' AND pc.chapter_id=c->>'sourceId' WHERE pc.pages IS NOT NULL`, [JSON.stringify(incoming)]);
+    const counts = new Map(cached.map(c => [JSON.stringify([c.source,c.chapter_id]),c.pages]));
+    incoming = incoming.map(c => ({...c,pages:c.pages || counts.get(JSON.stringify([c.source,c.sourceId])) || null}));
+  }
   const numbers = [...available].map(numKey);
   const data = [...incoming, ...[...knownNumbers, ...numbers].map(number => ({ number }))];
   const groups = await qq<{number: number; parent_number: number; required_pages: number | null; complete_forced: boolean; held: string | null}>(
