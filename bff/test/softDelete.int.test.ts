@@ -171,6 +171,38 @@ test('delete: put back after delete files shows the chapters as deleted from the
   assert.deepEqual(await owned.bookPages(SYSTEM_CTX, books.content[0].id), [], 'a deleted chapter has no pages to offer');
 });
 
+test('delete files: clears orphan chapter progress for every reader, preserving other series', { skip }, async () => {
+  await chapter('OrphanProgress', 'Chapter 1.cbz', 'orphan');
+  await chapter('KeepProgress', 'Chapter 1.cbz', 'keep');
+  await persistScan();
+  const orphan = await row('OrphanProgress');
+  const keep = await row('KeepProgress');
+  const users = await q<{ id: string }>(
+    `INSERT INTO users (display_name, role, auth_kind, password_hash) VALUES ('Orphan QA 1','user','password','test'),
+      ('Orphan QA 2','user','password','test') RETURNING id`,
+  );
+  try {
+    for (const user of users) {
+      for (const series of [orphan, keep]) {
+        await q(`INSERT INTO read_progress (user_id, book_id, series_id, page, completed)
+          SELECT $1, id, series_id, 1, true FROM lib_books WHERE series_id = $2`, [user.id, series.id]);
+      }
+    }
+    const { deleteSeriesFiles } = await import('../src/lib/libraryAdmin');
+    assert.equal((await deleteSeriesFiles(orphan.id)).ok, false, 'active series must be refused');
+    assert.equal((await q('SELECT 1 FROM read_progress WHERE series_id = $1', [orphan.id])).length, 2);
+    await q('UPDATE lib_series SET deleted_at = now() WHERE id = $1', [orphan.id]);
+    const result = await deleteSeriesFiles(orphan.id);
+    assert.equal(result.ok, true);
+    assert.equal((await q('SELECT 1 FROM read_progress WHERE series_id = $1', [orphan.id])).length, 0);
+    assert.equal((await q('SELECT 1 FROM read_progress WHERE series_id = $1', [keep.id])).length, 2);
+    assert.equal((await booksOf(orphan.id)).length, 1, 'keep the tombstone for restore and scanner behavior');
+  } finally {
+    await q('DELETE FROM read_progress WHERE user_id = ANY($1)', [users.map(u => u.id)]);
+    await q('DELETE FROM users WHERE id = ANY($1)', [users.map(u => u.id)]);
+  }
+});
+
 test('merge: stays merged across a rescan — the books do not migrate back', { skip }, async () => {
   await chapter('Keep', 'Chapter 1.cbz', 'k-1');
   await chapter('Absorb', 'Chapter 2.cbz', 'a-2');

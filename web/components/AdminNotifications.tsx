@@ -116,7 +116,7 @@ export function NotificationsSection() {
     <>
       {/* One group of targets (v0.86.0) under the category's own title, Add above its end, and the note about them under it. */}
       <RowGroup id="notify-targets"
-        description={tr('Send new chapters and server problems somewhere besides this browser: a webhook, Home Assistant, ntfy or Discord. One message per library update, not one per chapter.')}
+
         action={(
           <button type="button" onClick={() => setEditing('new')} className="btn-key">
             <IcPlus width={14} height={14} />{tr('Add')}

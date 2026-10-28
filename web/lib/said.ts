@@ -1201,7 +1201,10 @@ export function saidText(said: Said | readonly Said[] | null | undefined, fallba
 // ---- the fields that carry them ------------------------------------------------------------------------------
 
 /** A Health check's summary, note, and a row's title and detail, in the reader's language (bff lib/health.ts). */
-export const checkSummary = (c: { summary: string; summarySaid?: Said[] }): string => saidText(c.summarySaid, c.summary);
+export const checkSummary = (c: { summary: string; summarySaid?: Said[] }): string => {
+  const parts = c.summarySaid?.filter((s) => s.code !== 'gaps.quiet' && s.code !== 'sources.failingUnused');
+  return parts?.length === 0 ? '' : saidText(parts, c.summary);
+};
 export const checkNote = (c: { note?: string; noteSaid?: Said[] }): string => saidText(c.noteSaid, c.note ?? '');
 export const itemTitle = (i: { title: string; titleSaid?: Said }): string => saidText(i.titleSaid, i.title);
 export const itemDetail = (i: { detail: string; detailSaid?: Said[] }): string => saidText(i.detailSaid, i.detail);

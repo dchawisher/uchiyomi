@@ -7,7 +7,7 @@
 // the order they were added: the download settings over four cards, the nightly jobs scattered, the AniList switches
 // under Scanlators. Now each row is in the category its name says, the settings that are lists or rankings -- notice
 // chapters, the 18+ genres, the source order, the scanlation groups, the slow archive -- are one row each that says
-// what is set and opens an editor, and the rows few people change fold under More options. Server stays first:
+// what is set and opens an editor. Other settings are shown directly. Server stays first:
 // `test/e2e/run.mjs` reads the first 4000 characters of body text for the install-count payload.
 //
 // The only Save button left is the scanlation groups' one, in its editor's footer, because those are lists that are
@@ -26,7 +26,7 @@ import { Switch } from '@/components/Switch';
 import { OnBody } from '@/components/ui';
 import { IcBell, IcDownload, IcFilter, IcRefresh, IcSettings } from '@/components/icons';
 import {
-  Disclosure, EditorSheet, MoreOptions, NumberRow, Row, RowBlock, RowGroup, SaveState, Segmented, SelectRow, SummaryRow,
+  Disclosure, EditorSheet, NumberRow, Row, RowBlock, RowGroup, SaveState, Segmented, SelectRow, SummaryRow,
   SwitchRow, TextRow, useAutosave, useEditor,
 } from '@/components/settings';
 import type { PageView } from '@/components/ConsoleLayout';
@@ -45,8 +45,6 @@ import { adultShown } from '@/lib/adult';
 import { addable, moveIn, orderRows } from '@/lib/sourceOrder';
 import { moveTo, useDragReorder } from '@/lib/dragReorder';
 import { discoverSources } from '@/lib/sourceGroups';
-import { memberDefaultsOf } from '@/lib/memberDefaults';
-import { joinSentences } from '@/lib/jobs';
 import { clockText, hoursText, intervalChoices } from '@/lib/settingsChoices';
 
 /** One PATCH. Resolves once the server has answered, so the row that called it can show its tick. */
@@ -362,7 +360,7 @@ function SourceOrderSection({ data, save }: { data: any; save: Save }) {
 function SwitchWithMore({ id, label, help, on, onChange, more }: {
   id?: string;
   label: string;
-  help: string;
+  help?: string;
   on: boolean;
   onChange: (next: boolean) => Promise<unknown> | unknown;
   more: ReactNode;
@@ -414,31 +412,27 @@ function ServerSection({ data, save }: { data: any; save: Save }) {
     staleTime: 60_000,
     enabled: !desktop,
   });
-  // What a member the server makes by itself starts with (#208, item 6) lives on Members, beside the accounts; this
-  // row says what it is and goes there.
-  const defaults = memberDefaultsOf(data);
 
   return (
     <>
-      <RowGroup>
-        {/* `required`: the server refuses an empty name (zod min(1)) with a bare 400, so an emptied box goes
-            back to the saved name on blur instead of a "Could not save" over nothing. */}
-        <RowBlock id="server-name">
-          <TextRow label={tr('Server name')} value={data.server_name ?? ''} maxLength={64} autoComplete="off" required
-            onSave={(v) => save({ serverName: v })} />
-        </RowBlock>
-        {!desktop && !ssoOnly(authConfig) && (
-          <SwitchRow id="registration" label={tr('Open registration')} help={tr('Let anyone create their own account')}
-            on={!!data.allow_registration} onChange={(next) => save({ allowRegistration: next })} />
-        )}
-        {!desktop && (
-          <SummaryRow id="member-defaults-link" label={tr('When someone signs up')} href="/admin/?tab=Members&section=member-defaults"
-            value={defaults.perms.canDownload !== false ? tr('Can download') : tr('No downloads')} />
-        )}
-      </RowGroup>
+      <div className="min-w-0 space-y-6">
+        <RowGroup>
+          {/* `required`: the server refuses an empty name (zod min(1)) with a bare 400, so an emptied box goes
+              back to the saved name on blur instead of a "Could not save" over nothing. */}
+          <RowBlock id="server-name">
+            <TextRow label={tr('Server name')} value={data.server_name ?? ''} maxLength={64} autoComplete="off" required
+              onSave={(v) => save({ serverName: v })} />
+          </RowBlock>
+          {!desktop && !ssoOnly(authConfig) && (
+            <SwitchRow id="registration" label={tr('Open registration')} help={tr('Let anyone create their own account')}
+              on={!!data.allow_registration} onChange={(next) => save({ allowRegistration: next })} />
+          )}
+        </RowGroup>
+        {!desktop && <TranslateRow />}
+      </div>
 
       <RowGroup title={tr('Updates and privacy')}>
-        <SwitchWithMore id="update-check" label={tr('Check for updates')} help={tr('Asks GitHub once a day; nothing about this server is sent.')}
+        <SwitchWithMore id="update-check" label={tr('Check for updates')}
           on={data.update_check !== false} onChange={(next) => save({ updateCheck: next })}
           more={(
             <Disclosure label={tr('How this works')}>
@@ -448,7 +442,6 @@ function ServerSection({ data, save }: { data: any; save: Save }) {
             </Disclosure>
           )} />
         {!desktop && <SwitchWithMore id="install-count" label={tr('Count this server in the anonymous install count')}
-          help={tr('Off by default. Once a day, sends the few facts below to uchiyomi.com and nothing else.')}
           on={on}
           onChange={async (next) => {
             await save({ installPing: next });
@@ -482,9 +475,6 @@ function ServerSection({ data, save }: { data: any; save: Save }) {
           )} />}
       </RowGroup>
 
-      {/* v0.85.0: the opt-in translation engine -- a download, then one switch. Not on desktop (the engine's processes do
-          not run inside the app); the row and its group hide themselves where the server says it cannot run. */}
-      {!desktop && <TranslateRow />}
     </>
   );
 }
@@ -502,17 +492,13 @@ function SeriesSection({ data, save }: { data: any; save: Save }) {
             drawn as a chapter not here yet instead of "Deleted from the server". A file Verify found missing is not one:
             the sweep fetches those back, and they keep their own look. */}
         <SwitchRow id="deleted-ghosts" label={tr('Show deleted chapters as ghosts')} on={!!data.deleted_as_ghosts}
-          help={tr('A chapter whose file was deleted is shown like a chapter not downloaded yet, with Fetch to bring it back, instead of as a deleted chapter. Reading history is kept. Mihon lists it as “not downloaded”.')}
           onChange={(next) => save({ deletedAsGhosts: next })} />
         {/* The reveal for the cleanup, and for a followed series nobody has fetched: without it Mihon counted a pruned or
             never-downloaded chapter as zero chapters, and told the trackers so. No confirmation — nothing here is
             deleted or written. Only the Komga-compatible API reads it, and desktop does not serve that API. */}
         {!isDesktop() && (
-          <MoreOptions id="series-more">
-            <SwitchRow id="mihon-missing" label={tr('Show missing chapters in Mihon')} on={!!data.komga_ghost_chapters}
-              help={tr('List the chapters this server has not downloaded, and those whose files were deleted, alongside the ones it holds — so Mihon and your trackers count the whole series rather than only what is on disk. These rows cannot be opened; they are marked “not downloaded”. Only the Mihon extension sees them.')}
-              onChange={(next) => save({ komgaGhostChapters: next })} />
-          </MoreOptions>
+          <SwitchRow id="mihon-missing" label={tr('Show missing chapters in Mihon')} on={!!data.komga_ghost_chapters}
+            onChange={(next) => save({ komgaGhostChapters: next })} />
         )}
       </RowGroup>
 
@@ -520,16 +506,14 @@ function SeriesSection({ data, save }: { data: any; save: Save }) {
         {/* v0.73.0 (#257 and #245 from @Squeaks72): the nightly repair's ninth step. Off by default: it asks sources about
             series, and AniList's text is English. What it fills in sits below a series' own details, never over them. */}
         <SwitchRow id="fill-details" label={tr('Fill in missing details')}
-          help={tr('Off by default. Once a night, a series with no description, genres or author of its own gets them from AniList, when it is linked there and in English, or else from its own source or one it follows; a series with no chapters yet gets a cover too. A series’ own details always win, and so does anything you set in Edit details. Switching this off takes back everything it filled in.')}
           on={data.fill_details === true} onChange={(next) => save({ fillDetails: next })} />
         {/* Off by default: outbound traffic to sources that carry nothing else for a series. A series can
             switch it for itself on its Sources & translations sheet. */}
         <SwitchRow id="borrow-names" label={tr('Borrow chapter names from other sources')}
-          help={tr('Off by default. When a series’ own source only ever says “Chapter 12”, take the names from another source whose numbering was checked against this one — a source that numbers the chapters differently is never used, and the names go into the chapter name only, never the file. The chapter’s own source naming it later wins, and switching this off takes the borrowed names back.')}
           on={data.borrow_names === true} onChange={(next) => save({ borrowNames: next })} />
         {/* v0.56.0: Discover's names looked up on AniList, MangaDex and MangaUpdates. ON by default, which `!== false`
             reads as: a server that does not send the key yet looks them up. */}
-        <SwitchRow id="discover-lookups" label={tr('Match Discover titles online')}
+        <SwitchRow id="discover-lookups" label={tr('Match Discover titles online')} helpOnDemand
           help={tr('On by default. Titles shown in Discover are looked up on AniList, MangaDex and MangaUpdates, once each and in the background, so that a series several sources name differently shows as one card and one you already have stays hidden. Off, only the names themselves are compared and nothing is sent anywhere.')}
           on={data.discover_lookups !== false} onChange={(next) => save({ discoverLookups: next })} />
       </RowGroup>
@@ -566,22 +550,18 @@ function SchedulesSection({ data, save }: { data: any; save: Save }) {
         <SlowArchiveRow data={data} save={save} />
         {/* Which languages MangaDex is a source in lives with the sources (components/MangadexCard.tsx); this row goes there, unfolded (`?card=mangadex`, v0.52.0). */}
         <SummaryRow id="mangadex-languages" label={tr('MangaDex languages')} href="/admin/?tab=Sources&card=mangadex" />
-        <MoreOptions id="downloads-more">
-          {/* v0.89.0 (#305): how many other sources a series may follow (bff lib/followLimit.ts), here since the env's
-              MAX_FOLLOWED_SOURCES alone set it -- that number is what the menu shows until one is picked. The help says the
-              cost: each one is a chapter list asked for at every update. */}
-          <SelectRow id="sources-per-series" label={tr('Other sources per series')}
-            help={tr('How many sources besides its main one a series may follow, whether you add them or Uchiyomi finds them. 3 by default. Each one is one more chapter list to ask for at every library update.')}
-            value={String(data.followerLimit ?? 3)}
-            options={Array.from({ length: data.followerLimitMax ?? 10 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))}
-            onChange={(v) => save({ maxFollowedSources: Number(v) })} />
-          {/* v0.61.0, the release radar's other half (bff lib/releaseRadar.ts isDue): the scheduled sweep asks a long-quiet
-              series less often and a due one as usual. Off by default, and `=== true` reads a server that does not send the
-              key as off; the help says the limit and that Check now is never kept waiting. */}
-          <SwitchRow id="smart-checks" label={tr('Smart update checks')}
-            help={tr('Ask series that have been quiet for a long time less often, at least every 3 days, and every series as usual while its next chapter is due. Check now always asks at once.')}
-            on={data.update_smart === true} onChange={(next) => save({ updateSmart: next })} />
-        </MoreOptions>
+        {/* v0.89.0 (#305): how many other sources a series may follow (bff lib/followLimit.ts), here since the env's
+            MAX_FOLLOWED_SOURCES alone set it -- that number is what the menu shows until one is picked. The help says the
+            cost: each one is a chapter list asked for at every update. */}
+        <SelectRow id="sources-per-series" label={tr('Other sources per series')}
+          value={String(data.followerLimit ?? 3)}
+          options={Array.from({ length: data.followerLimitMax ?? 10 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))}
+          onChange={(v) => save({ maxFollowedSources: Number(v) })} />
+        {/* v0.61.0, the release radar's other half (bff lib/releaseRadar.ts isDue): the scheduled sweep asks a long-quiet
+            series less often and a due one as usual. Off by default, and `=== true` reads a server that does not send the
+            key as off; the help says the limit and that Check now is never kept waiting. */}
+        <SwitchRow id="smart-checks" label={tr('Smart update checks')}
+          on={data.update_smart === true} onChange={(next) => save({ updateSmart: next })} />
       </RowGroup>
 
       <RowGroup title={tr('Disk space')}>
@@ -605,22 +585,16 @@ function SchedulesSection({ data, save }: { data: any; save: Save }) {
  */
 function MaintenanceSection({ data, save }: { data: any; save: Save }) {
   // A computer is often off at 3 a.m.; the desktop server runs a missed backup the next time it opens.
-  const nightly = tr('Nightly, local time. Shown under Tasks.');
   const backup = data.backup_enabled === false ? 'off' : String(data.backup_hour ?? 3);
   const hours = Array.from({ length: 24 }, (_, h) => h);
   return (
     <>
       <RowGroup title={tr('Backups')}>
         <SelectRow id="nightly-backup" label={tr('Nightly backup')} value={backup}
-          help={joinSentences(
-            tr('Save the database and the config folder every night. Turn it off if you back up another way; Run now under Tasks still makes one.'),
-            isDesktop() ? `${nightly} ${tr('If the PC is off then, it runs the next time Uchiyomi opens.')}` : nightly,
-          )}
           options={[{ value: 'off', label: tr('Off') }, ...hours.map((h) => ({ value: String(h), label: clockText(h) }))]}
           onChange={(v) => save(v === 'off' ? { backupEnabled: false } : { backupEnabled: true, backupHour: Number(v) })} />
         <RowBlock id="backups-keep">
           <NumberRow label={tr('Backups to keep')} min={1} max={365} value={data.backup_keep ?? 14}
-            help={tr('After each backup, the oldest beyond this number are deleted.')}
             onSave={(n) => save({ backupKeep: n })} />
         </RowBlock>
       </RowGroup>
@@ -637,7 +611,6 @@ function MaintenanceSection({ data, save }: { data: any; save: Save }) {
       {data.extensions_configured && (
         <RowGroup title={tr('Extensions')}>
           <SwitchRow id="extension-auto-update" label={tr('Update extensions automatically')}
-            help={tr('Install new versions of your installed extensions as their repositories publish them. Turn this off to be told about updates and apply them yourself.')}
             on={data.extension_auto_update !== false} onChange={(next) => save({ extensionAutoUpdate: next })} />
           <SelectRow id="extension-hours" label={tr('Extension check interval (hours)')} value={String(data.extension_hours ?? 6)}
             options={intervalChoices(data.extension_hours ?? 6).map((h) => ({ value: String(h), label: hoursText(h) }))}
@@ -745,7 +718,7 @@ function HousekeepingSection({ data, save: patch }: { data: any; save: Save }) {
         {/* fog-400 for the line that says what the number means, fog-500 for the one that says what is
             spared: fog-600 measures 2.6:1 on the card, under AA for text, and these two are read, not
             glanced at. fog-600 is for decorative counts only. */}
-        <p className="mt-1 max-w-prose text-[11px] leading-relaxed text-fog-400">{tr('Days after last reader finishes.')}</p>
+
       </RowBlock>
       {/* Out to <body>: a `.card` blurs its backdrop, and that traps a fixed dialog inside the card (components/ui.tsx OnBody). */}
       {confirm && (

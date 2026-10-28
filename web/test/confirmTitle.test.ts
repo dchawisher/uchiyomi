@@ -124,22 +124,9 @@ test('the fold keeps the digits and letters a title is made of', () => {
   assert.equal(foldTitle('Solo Leveling'), 'Solo Leveling', 'a plain ASCII title must come out as it went in');
 });
 
-test('the dialog offers Copy title, and only where a clipboard exists', () => {
-  // The copy affordance is what makes a title the fold cannot rescue -- an all-emoji one, or simply a very
-  // long one -- reachable at all, and it is what the reporter was already doing by hand.
-  //
-  // ⚠️ `navigator.clipboard` is undefined outside a secure context, and plain http over a LAN is how most
-  // people reach this server. So the button is rendered from state an effect sets after mount: reading
-  // `typeof navigator` during render would put the button in the statically exported HTML and not in the
-  // first client render (a hydration mismatch), and calling `writeText` unguarded would throw on the tap.
-  // Reintroduce by rendering `{navigator.clipboard && (` instead of `{canCopy && (`, or by dropping the
-  // `?.writeText` check from the effect: the matching assertion fails.
+test('confirmation needs no keyboard transcription or clipboard', () => {
   const src = code('components/ConfirmDialog.tsx');
-  assert.match(src, /useEffect\(\(\) => \{ setCanCopy\(typeof navigator !== 'undefined' && typeof navigator\.clipboard\?\.writeText === 'function'\); \}, \[\]\);/, 'the clipboard is not probed after mount');
-  assert.match(src, /\{canCopy && \(\s*<button/, 'the Copy title button is not gated on the probe');
-  assert.match(src, /navigator\.clipboard\.writeText\(text\)\.then\(/, 'the copy does not go through the clipboard API');
-  assert.match(src, /\{copied \? tr\('Copied'\) : tr\('Copy title'\)\}/, 'the button must say what it did, through tr()');
-  // The label it sits beside is untouched: one translated sentence with the title inside it
-  // (forgetSeries.test.ts holds that rule).
-  assert.match(src, /\{before\}<span className="[^"]*">\{confirmText\}<\/span>\{after\}/, 'the typed-confirmation label lost its shape');
+  assert.doesNotMatch(src, /confirmText|navigator\.clipboard|<input/);
+  assert.match(src, /disabled=\{busy\}/);
+  assert.match(src, /onClick=\{onConfirm\}/);
 });

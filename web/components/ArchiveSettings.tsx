@@ -8,9 +8,7 @@
 // scheduler reads them again at once -- no restart.
 import { Disclosure, EditorSheet, NumberRow, RowBlock, SummaryRow, SwitchRow, useEditor } from '@/components/settings';
 import { t as tr } from '@/lib/i18n';
-import { isDesktop } from '@/lib/desktop';
-import { ARCHIVE_PACE, archivePaceHelp } from '@/lib/archive';
-import { joinSentences } from '@/lib/jobs';
+import { ARCHIVE_PACE } from '@/lib/archive';
 
 type Save = (body: Record<string, unknown>) => Promise<unknown>;
 
@@ -23,29 +21,23 @@ export function SlowArchiveRow({ data, save }: { data: any; save: Save }) {
   const from: number | null = data.archive_window_from ?? null;
   const to: number | null = data.archive_window_to ?? null;
   const windowOn = from != null && to != null;
-  const freeGb: number | null = typeof data.archive_free_gb === 'number' ? data.archive_free_gb : null;
-  const desktop = isDesktop();
   return (
     <>
       <SummaryRow id="slow-archive" ref={editor.row} label={tr('Slow archive')} onClick={editor.show}
         value={data.archive_paused === true ? tr('Paused') : tr('Running')} />
       <EditorSheet title={tr('Slow archive')} open={editor.open} onClose={editor.close}>
-        <p className="max-w-prose py-3 text-[12px] leading-relaxed text-fog-400 first:pt-1">
-          {tr('The slow archive fetches whole series a chapter at a time, over nights or days, so a site never sees a burst. Queue a series from the add dialog, its page, or a Library selection.')}
-        </p>
+
         {/* On is "not paused": the column is archive_paused, and the switch says what an admin wants to know. */}
-        <SwitchRow label={tr('Slow archive')}
-          help={desktop
-            ? joinSentences(tr('Off pauses every archive; nothing queued is lost.'), tr('Runs only while Uchiyomi is running, even when it is only in the tray or menu bar. If the PC sleeps at night, a night-time window will rarely get anything done.'))
-            : tr('Off pauses every archive; nothing queued is lost.')}
+        <SwitchRow label={tr('Enable slow archive')}
+
           on={data.archive_paused !== true} onChange={(next) => save({ archivePaused: !next })} />
         <RowBlock id="archive-per-hour">
           <NumberRow label={tr('Chapters an hour, per source')} min={ARCHIVE_PACE.perHourRange[0]} max={ARCHIVE_PACE.perHourRange[1]} value={perHour}
-            help={archivePaceHelp(perHour)} onSave={(n) => save({ archivePerHour: n })} />
+            onSave={(n) => save({ archivePerHour: n })} />
         </RowBlock>
         {/* The window's two ends travel together: the server refuses one without the other. */}
         <SwitchRow id="archive-window" label={tr('Only during set hours')}
-          help={tr("Hours in the server's local time. 22 until 6 runs overnight.")}
+
           on={windowOn}
           onChange={(next) => save(next
             ? { archiveWindowFrom: WINDOW_DEFAULT.from, archiveWindowTo: WINDOW_DEFAULT.to }
@@ -61,9 +53,6 @@ export function SlowArchiveRow({ data, save }: { data: any; save: Save }) {
         )}
         <RowBlock id="archive-free-space">
           <NumberRow label={tr('Stop when free space is below (GB)')} min={1} max={2000} value={data.archive_min_free_gb ?? 20}
-            help={freeGb === null
-              ? tr('Chapters you fetch yourself are not held to this.')
-              : `${tr('Free now: {n} GB.', { n: freeGb.toLocaleString() })} ${tr('Chapters you fetch yourself are not held to this.')}`}
             onSave={(n) => save({ archiveMinFreeGb: n })} />
         </RowBlock>
         <div className="py-3 last:pb-0">

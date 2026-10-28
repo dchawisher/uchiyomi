@@ -8,7 +8,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
-import { confirmsTitle } from '../lib/confirmTitle';
 
 const ROOT = join(__dirname, '..');
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
@@ -32,12 +31,12 @@ test('Forget is offered only once nothing on disk could bring the series back', 
   assert.ok(group.length > 0 && !group.includes('</div>'), 'Forget must sit in the same button group as Delete files, after it');
 });
 
-test('the Forget dialog is typed, dangerous, and says what the Delete-files dialog promises is kept', () => {
+test('the Forget dialog confirms without typing and explains what it erases', () => {
   // Reintroduce by dropping `confirmText`, `danger`, or either sentence.
   const src = code(read('app/admin/page.tsx'));
   const dlg = src.slice(src.indexOf('{forget && ('), src.indexOf('onClose={() => setForget(null)}'));
   assert.ok(dlg.length > 0, 'no Forget dialog');
-  assert.match(dlg, /confirmText=\{forget\.title\}/, 'the title must be typed to confirm');
+  assert.doesNotMatch(dlg, /confirmText=/, 'confirmation must not require typing');
   assert.match(dlg, /\n\s*danger\n/, 'the confirm button must be the rose one');
   assert.match(dlg, /busy=\{forgetting\}/, 'the button must disable while the request runs');
   assert.ok(dlg.includes("tr(\"This erases the series and everyone's reading history on it — progress, bookmarks, notes, ratings, favourites, tracker links.\")"), 'the first sentence changed');
@@ -61,45 +60,9 @@ test('every string Forget and the token checkbox render is in the locale files, 
   }
 });
 
-test('the typed confirmation label is one sentence with the title inside it, in every language', () => {
-  // `tr('Type')` + title + a literal " to confirm" measured "TYPGONE FOR GOOD TO CONFIRM" in German and
-  // "النوعGONE FOR GOOD TO CONFIRM" in Arabic: 'Type' translated as the noun (Typ, "the kind"), no space
-  // before the title, and the tail in English in every language. One sentence key, split around the
-  // placeholder, translates as a sentence. Reintroduce by going back to `{tr('Type')}<span>…</span> to
-  // confirm`, or by dropping `{title}` (or the spaces around it) from any locale's translation.
-  const src = code(read('components/ConfirmDialog.tsx'));
-  assert.match(src, /const \[before, after\] = tr\('Type \{title\} to confirm'\)\.split\('\{title\}'\)/, 'the label is not built from the one sentence key');
-  assert.match(src, /\{before\}<span className="[^"]*">\{confirmText\}<\/span>\{after\}/, 'the title must sit between the two halves of the sentence');
-  assert.doesNotMatch(src, /tr\('Type'\)/, "the old 'Type' key is still rendered");
-  assert.doesNotMatch(src, /<\/span> to confirm/, 'the tail of the sentence is still an English literal');
-  const dir = join(ROOT, 'public/locales');
-  const sentences = ['Type {title} to confirm', ...readdirSync(dir).filter((f) => f.endsWith('.json')).map((f) => {
-    const d = JSON.parse(readFileSync(join(dir, f), 'utf8'));
-    return [f, d['Type {title} to confirm']] as const;
-  }).map(([f, s]) => { assert.ok(s, `${f} has no translation for the typed-confirmation sentence`); return s as string; })];
-  for (const s of sentences) {
-    const [before, after] = s.split('{title}');
-    assert.ok(after !== undefined, `"${s}" lost its {title} placeholder, so the title would not be shown at all`);
-    assert.match(before, /\s$/, `"${s}": no space before the title, it would glue to the word before it`);
-    assert.match(after, /^\s/, `"${s}": no space after the title`);
-  }
-});
 
-test('the typed confirmation is folded, like the route', () => {
-  // A macOS-written folder carries "Cafe" + U+0301 while a keyboard types U+00E9 -- and 38 of the owner's
-  // 241 series carry a curly apostrophe, a dash or an entity a keyboard cannot produce at all. Byte for
-  // byte none of those ever matched, so the button never enabled and the action was unreachable (#66).
-  // The rule is `confirmsTitle` in lib/confirmTitle.ts, whose twin routes/admin.ts checks with (its own
-  // test is in bff/test/forgetSeries.int.test.ts, the fold's own in confirmTitle.test.ts). Reintroduce by
-  // comparing `typed.trim().normalize('NFC')` with the same of `confirmText`: "the dialog compares bytes"
-  // fails, and so does the curly-apostrophe line below.
-  const src = code(read('components/ConfirmDialog.tsx'));
-  assert.match(src, /const ready = !confirmText \|\| confirmsTitle\(typed, confirmText\);/, 'the dialog compares bytes, not text');
-  assert.match(src, /import \{ confirmsTitle \} from '@\/lib\/confirmTitle';/, 'the dialog must fold with the shared file, not a rule of its own');
-  assert.ok(confirmsTitle('Café Story', 'Cafe\u{0301} Story'), 'a typed NFC title must confirm an NFD one');
-  assert.ok(confirmsTitle("Emperor's Domination", 'Emperor’s Domination'), 'a straight apostrophe must confirm a curly one');
-  assert.equal(confirmsTitle('Cafe Story', 'Café Story'), false, 'a different title must still be refused');
-});
+
+
 
 test('every string on the Removed row and in the two dialogs is translated, and a long title is not cut to one line on a phone', () => {
   // Measured at 390 ar/de: "Put back", "5 chapters · removed 1d ago" and the intro paragraph were English
@@ -111,7 +74,7 @@ test('every string on the Removed row and in the two dialogs is translated, and 
   assert.match(panel, /tr\('1 chapter · removed \{when\}'/, 'the singular caption is not translated');
   assert.match(panel, /tr\('\{n\} chapters · removed \{when\}'/, 'the plural caption is not translated');
   assert.equal((panel.match(/\{tr\('Folder'\)\}: <span dir="ltr">\{(purge|forget)\.folder\}<\/span>/g) || []).length, 2, 'both dialogs must translate "Folder" and keep the path LTR');
-  assert.match(panel, /\{tr\('Removing a series hides it from the library, search and the updater\./, 'the intro paragraph is not translated');
+  assert.match(panel, /tr\('Orphaned Files'\)/, 'the orphan section needs its own heading');
   assert.doesNotMatch(panel, /\bchapter\{r\.books_count === 1/, 'the caption is still pluralised in JS');
   // The title: two lines on a phone (line-clamp-2), one line with an ellipsis and a tooltip from lg up. A
   // 506 px title against a 168 px column at 390 lost everything after "Kaguya-sama: Love Is War – The",

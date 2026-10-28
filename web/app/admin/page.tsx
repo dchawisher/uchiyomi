@@ -125,6 +125,11 @@ function AdminInner() {
     ...settings.views,
   };
 
+  for (const view of Object.values(views)) {
+    view.summary = undefined;
+    view.description = undefined;
+  }
+
   return (
     <div className="min-h-screen-d px-4 lg:px-0" data-admin-console>
       {/* The foot of the list says which Uchiyomi this is (v0.55.4, #150): the place people looked for it. */}
@@ -492,9 +497,7 @@ function Members() {
         <div className="card grad-border p-4" data-sso-accounts>
           <h2 className="mb-2 font-display text-base font-semibold">{tr('New accounts')}</h2>
           <p className="text-sm leading-relaxed text-fog-300">
-            {data?.auth?.signup
-              ? tr('This server signs in through {name} only. Anyone {name} lets in gets an account the first time they sign in, so choose who in {name}.', { name: iso(provider) })
-              : tr('This server signs in through {name} only, and makes no new accounts: only accounts already linked to {name} can sign in. OIDC_ALLOW_SIGNUP lets new people in.', { name: iso(provider) })}
+            {tr('Manage users with {name}.', { name: provider })}
           </p>
           {/* What those accounts start with (#208, item 6): the chips of the card below in local mode. */}
           <NewMemberDefaults sso provider={provider} signup={!!data?.auth?.signup} />
@@ -579,7 +582,6 @@ function Members() {
           title={tr('Remove “{name}”?', { name: `@${deleting.username}` })}
           body={tr('Their reading history, favourites and sessions go with the account. Nothing in the library is touched and no files are deleted.')}
           confirmLabel={tr('Remove')}
-          confirmText={deleting.username}
           danger
           busy={deletingBusy}
           onConfirm={() => del(deleting)}
@@ -710,7 +712,7 @@ function ArtReview() {
           <div>
             <h2 className="font-display text-lg font-semibold">{tr('Cover & banner health')}</h2>
             <p className="text-xs text-fog-500">{tr('Backfill re-hunts AniList + MangaDex for missing art. Click a series to pick art by hand.')}</p>
-            <p className="mt-1 text-[11px] text-fog-500">{tr('Manual AniList actions can contact AniList even when automatic lookups are off.')}</p>
+
           </div>
           <button onClick={startBackfill} disabled={!!job?.running} className="btn-accent px-4 py-2 text-sm disabled:opacity-50">
             {job?.running ? tr('Backfilling {done} of {total}…', { done: job.done, total: job.total }) : tr('Backfill missing banners')}
@@ -894,6 +896,7 @@ function Tasks() {
             {/* Wraps rather than truncates: a task's result is the only record of a detached run, and the
                 verify line ("one folder looked unmounted…: /library-dl, 4000 checked, 312 missing…") is
                 900 px wide -- truncated, it read as a clean run on every width. */}
+
             <p className="col-start-1 row-start-2 min-w-0 break-words text-[11px] text-fog-500 lg:col-start-2 lg:row-start-1">
               {scheduleText(t)} · {t.lastRun ? tr('last run {when}', { when: relativeTime(new Date(t.lastRun).toISOString()) }) : tr('not run yet')}
               {/* The repair's line is the last FULL run's since v0.49.0 (the nightly, or Run now here): say which. */}
@@ -901,9 +904,6 @@ function Tasks() {
               {taskResult(t.lastResult)}
               {typeof t.remaining === 'number' && t.remaining > 0 && (
                 <span className="text-amber-300"> · {tr('{n} waiting', { n: t.remaining.toLocaleString() })}</span>
-              )}
-              {t.id === 'matches' && (
-                <span className="mt-1 block">{tr('Manual AniList actions can contact AniList even when automatic lookups are off.')}</span>
               )}
             </p>
             {t.id === 'repair' && (
@@ -1529,15 +1529,10 @@ function LibrariesSection() {
 
   return (
     <section className="full">
-      <div className="mb-1 flex items-center justify-between gap-3">
-        <h3 className="font-display text-base font-semibold">{tr('Libraries')}</h3>
+      <div className="mb-3 flex items-center justify-end gap-3">
         <button onClick={() => openNew()} className="chip shrink-0 text-xs"><IcPlus width={13} height={13} />{tr('New library')}</button>
       </div>
-      <p className="mb-3 max-w-prose text-xs leading-relaxed text-fog-500">
-        {desktopLibs
-          ? tr('A library is one or more folders, plus any series you file into it by hand. Give it an age rating and everything in it inherits that.')
-          : tr('A library is one or more folders, plus any series you file into it by hand. Give it an age rating and everything in it inherits that, and choose who can open it.')}
-      </p>
+
 
       {/* Cards rather than one divided list: at 1592px a row left a lake between a library's path and the
           buttons that act on it, and a library is a thing rather than an entry in a feed. */}
@@ -1752,16 +1747,14 @@ function LibraryPanel() {
               <p>
                 <strong className="text-fog-100">{purge.live_books === 1 ? tr('This deletes 1 chapter file from your disk.')
                   : tr('This deletes {n} chapter files from your disk.', { n: purge.live_books })}</strong>{' '}
-                {tr('It cannot be undone from here.')}
               </p>
-              <p className="mt-2">{tr('Everyone’s reading progress and history are kept, so the record of having read it survives even though the files do not.')}</p>
+
               {/* The path is LTR text whatever the UI direction: unmarked, Arabic moved its leading slash
                   to the far end ("library-dl/mangadex/gone-for-good/"). */}
               <p className="mt-2 text-fog-500">{tr('Folder')}: <span dir="ltr">{purge.folder}</span></p>
             </>
           }
           confirmLabel={tr('Delete files')}
-          confirmText={purge.title}
           danger
           busy={purging}
           onConfirm={() => deleteFiles(purge)}
@@ -1797,7 +1790,6 @@ function LibraryPanel() {
             </>
           }
           confirmLabel={tr('Forget')}
-          confirmText={forget.title}
           danger
           busy={forgetting}
           onConfirm={() => forgetSeries(forget)}
@@ -1805,9 +1797,7 @@ function LibraryPanel() {
         />
       )}
       <div className="full space-y-3">
-        <p className="max-w-prose text-xs text-fog-500">
-          {tr('Removing a series hides it from the library, search and the updater. Its files are left exactly where they are, and everyone’s reading progress is kept, so putting it back changes nothing else.')}
-        </p>
+        <h3 className="font-display text-base font-semibold">{tr('Orphaned Files')}</h3>
         {isLoading ? (
           <div className="card grad-border p-4 text-sm text-fog-500">{tr('Loading…')}</div>
         ) : !rows.length ? (
@@ -1833,11 +1823,7 @@ function LibraryPanel() {
                     : tr('{n} chapters · removed {when}', { n: r.books_count, when: relativeTime(r.deleted_at) })}
                   {' · '}{r.folder}
                 </p>
-                {filesGone(r) && (
-                  <p className="col-span-2 col-start-1 row-start-3 min-w-0 text-[11px] text-fog-400 lg:col-span-1 lg:col-start-2 lg:row-start-2">
-                    {tr('The chapter files are gone. Put back lists them as deleted from the server; Fetch again on the series page brings back the ones Uchiyomi downloaded.')}
-                  </p>
-                )}
+
                 <div className="col-start-2 row-span-2 row-start-1 flex shrink-0 gap-1.5 justify-self-end lg:col-start-3 lg:row-span-1">
                   {/* After Delete files the button still works -- the series comes back with every chapter
                       marked "Deleted from the server", which is where Fetch again lives -- and the caption

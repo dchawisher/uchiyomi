@@ -925,10 +925,9 @@ export interface FileOpRefusal { ok: false; reason: string; fix?: string }
  * Requires the series to be hidden already, so the reversible step always happens first: "Remove" hides,
  * and only then can you also delete the files. It is an escalation, never a shortcut past the undo.
  *
- * The chapter ROWS and everyone's read_progress stay. read_progress.book_id is ON DELETE RESTRICT precisely
- * so that removing a chapter cannot silently delete what someone read of it, which is the one loss with no
- * undo and which syncs outward to AniList. A later scan neither resurrects them (the folder is gone) nor
- * prunes them (there is no prune path).
+ * Chapter rows stay as tombstones. This explicit deletion of a removed series' files clears reading
+ * progress on its deleted chapters; live chapters left after a partial failure keep their progress.
+ * A later scan neither resurrects the series (the folder is gone) nor prunes the chapter rows.
  *
  * The rows whose file this removed are marked pruned with reason 'deleted' (tombstoneBooks, the same mark
  * the chapter-level delete leaves). Until v0.37.0 they were left as live rows claiming bytes that were
@@ -1136,6 +1135,15 @@ export async function deleteSeriesFiles(id: string, opts: { gone?: boolean } = {
     }
   }
   await tombstoneBooks([...removed, ...reconciled], 'deleted');
+  // Explicitly deleting an orphan's files also clears progress on its deleted chapters.
+  // Keep progress on any files left live after a partial failure, and on every other series.
+  // Include earlier tombstones so retrying a partially completed deletion is idempotent.
+  await q(
+    `DELETE FROM read_progress WHERE book_id IN (
+       SELECT b.id FROM lib_books b JOIN lib_series s ON s.id = b.series_id
+       WHERE s.id = $1 AND s.deleted_at IS NOT NULL
+         AND b.pruned_at IS NOT NULL AND b.pruned_reason = 'deleted'
+     )`, [id]);
   // The cover follows the lowest LIVE chapter, the way persistScan and the chapter delete pick it: every
   // thumbnail falls back to the cover chapter's first page, and a tombstone has none. With every row marked
   // this still lands on a tombstone, and the series page's dashed placeholder is the honest rendering.

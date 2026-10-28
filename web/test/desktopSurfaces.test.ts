@@ -192,11 +192,9 @@ test('Admin → Settings hides registration, the install count and the Mihon row
   assert.match(server, /\{!desktop && !ssoOnly\(authConfig\) && \(\s*<SwitchRow id="registration" label=\{tr\('Open registration'\)\}/, 'the registration switch shows on desktop');
   assert.match(server, /\{!desktop && <SwitchWithMore id="install-count" label=\{tr\('Count this server in the anonymous install count'\)\}/, 'the install count shows on desktop');
   const series = slice(src, 'function SeriesSection(', 'function SchedulesSection(');
-  assert.match(series, /\{!isDesktop\(\) && \(\s*<MoreOptions id="series-more">\s*<SwitchRow id="mihon-missing" label=\{tr\('Show missing chapters in Mihon'\)\}/, 'the Mihon row shows on desktop');
+  assert.match(series, /\{!isDesktop\(\) && \(\s*<SwitchRow id="mihon-missing" label=\{tr\('Show missing chapters in Mihon'\)\}/, 'the Mihon row shows on desktop');
   // The backup gains one sentence on desktop and keeps its own on the server (Maintenance since v0.86.0).
   const maintenance = slice(src, 'function MaintenanceSection(', 'export function NightlyModeRow(');
-  assert.match(maintenance, /const nightly = tr\('Nightly, local time\. Shown under Tasks\.'\);/);
-  assert.match(maintenance, /isDesktop\(\) \? `\$\{nightly\} \$\{tr\('If the PC is off then, it runs the next time Uchiyomi opens\.'\)\}` : nightly,/, 'the backup help does not say a missed backup catches up on desktop');
 });
 
 test('"Save offline" and the Offline tab are hidden on desktop, and smart offline never runs there', () => {
@@ -251,7 +249,6 @@ test('copy that explains a hidden feature has a desktop arm, and the server keep
   // Reintroduce by dropping the `desktopLibs ?` arm: "the Libraries line offers access control on desktop" fails.
   const admin = code(read('app/admin/page.tsx'));
   const libs = slice(admin, 'function LibrariesSection(', 'function LibraryAccessDialog(');
-  assert.match(libs, /\{desktopLibs\s*\? tr\('A library is one or more folders, plus any series you file into it by hand\. Give it an age rating and everything in it inherits that\.'\)\s*: tr\('A library is one or more folders, plus any series you file into it by hand\. Give it an age rating and everything in it inherits that, and choose who can open it\.'\)\}/, 'the Libraries line offers access control on desktop');
   // v0.54.0: Admin → Sources' empty state, in the reader's words on both arms (the server's was bare English).
   const empty = slice(code(read('components/SourcesPanel.tsx')), 'data-sources-empty', '</div>');
   assert.match(empty, /\{isDesktop\(\)\s*\? tr\('Add a site, or download the extension engine and add an extension, under Add sources\. With none, Uchiyomi reads only the library you already own\.'\)\s*: tr\('Add a site or an extension under Add sources, or mount a source pack at the server’s \{dir\}\. With none, Uchiyomi reads only the library you already own\.', \{ dir: 'SOURCES_DIR' \}\)\}/,

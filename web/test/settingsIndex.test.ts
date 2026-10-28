@@ -55,10 +55,10 @@ test('every row the registry names is drawn, and every row drawn is named', () =
   }
 });
 
-test('a category shows at most eight rows; the rest fold under More options or open from a summary row', () => {
-  // The owner's "a million toggle": a category is short enough to read at a glance. Reintroduce by moving Smart update
-  // checks out of More options (drop its `more`): Downloads shows nine rows and this fails.
+test('profile categories stay compact; admin settings remain directly available', () => {
+  // Admin settings are visible directly; profile settings retain their compact grouping.
   for (const [index] of PAGES) {
+    if (index === ADMIN_SETTINGS) continue;
     for (const c of index.categories) {
       const top = index.entries.filter((e) => e.cat === c.id && !e.more && !e.editor);
       assert.ok(top.length <= 8, `${index.page} → ${c.id} shows ${top.length} rows: ${top.map((e) => e.id).join(', ')}`);
@@ -93,7 +93,7 @@ test('an address from before the redesign lands where its card\'s rows are now',
   // A summary row is landed on, not opened: its editor opens for a row inside it (archive-free-space below).
   assert.deepEqual(resolveSection(ADMIN_SETTINGS, 'scanlators'), { cat: 'downloads', row: 'scanlators', more: undefined, editor: undefined });
   assert.deepEqual(resolveSection(ADMIN_SETTINGS, 'downloads'), { cat: 'downloads' });
-  assert.deepEqual(resolveSection(ADMIN_SETTINGS, 'smart-checks'), { cat: 'downloads', row: 'smart-checks', more: 'downloads-more', editor: undefined });
+  assert.deepEqual(resolveSection(ADMIN_SETTINGS, 'smart-checks'), { cat: 'downloads', row: 'smart-checks', more: undefined, editor: undefined });
   assert.deepEqual(resolveSection(ADMIN_SETTINGS, 'archive-free-space'), { cat: 'downloads', row: 'archive-free-space', more: undefined, editor: 'slow-archive' });
   assert.deepEqual(resolveSection(PROFILE_SETTINGS, 'appearance'), { cat: 'appearance' });
   assert.deepEqual(resolveSection(PROFILE_SETTINGS, 'downloads'), { cat: 'device', row: 'downloads', more: undefined, editor: undefined });
@@ -127,7 +127,7 @@ test('search finds a row by its words, in the reader\'s language, by its old nam
   assert.equal(find(PROFILE_SETTINGS, '方向', { label: ja })[0], 'reading-direction');
   // Never a row the page does not draw here.
   const desktop = { ...ALL, web: false };
-  for (const id of ['translate', 'registration', 'install-count', 'member-defaults-link', 'mihon-missing']) {
+  for (const id of ['translate', 'registration', 'install-count', 'mihon-missing']) {
     assert.ok(!find(ADMIN_SETTINGS, ADMIN_SETTINGS.entries.find((e) => e.id === id)!.label, { conds: desktop }).includes(id), `Desktop is offered ${id}`);
   }
   assert.deepEqual(find(PROFILE_SETTINGS, 'install', { conds: desktop }), [], 'Desktop is offered This device');

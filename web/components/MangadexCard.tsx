@@ -197,7 +197,7 @@ export function UnstatedLanguageRow() {
   return (
     <Row htmlFor={id} status={status} id="sources-unstated-language"
       label={tr('Sites that do not say their language')}
-      help={tr('Uchiyomi takes them to be in this language, and follows a source for a series automatically only when both are in the same language.')}>
+      >
       <select id={id} value={value} onChange={(e) => pick(e.target.value)} className="field w-auto">
         {codes.map((c) => <option key={c} value={c}>{languageName(c)}</option>)}
       </select>

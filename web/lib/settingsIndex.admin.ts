@@ -50,8 +50,6 @@ export const ADMIN_SETTINGS: SettingsIndex = {
     // ---- Server ----
     { id: 'server-name', cat: 'server', label: 'Server name', keywords: ['name', 'title'] },
     { id: 'registration', cat: 'server', label: 'Open registration', when: ['web', 'local-accounts'], keywords: ['sign up', 'signup', 'register', 'new accounts'] },
-    { id: 'member-defaults-link', cat: 'server', label: 'When someone signs up', when: ['web'],
-      keywords: ['new member defaults', 'permissions', 'age limit', 'libraries', 'can download'] },
     { id: 'update-check', cat: 'server', label: 'Check for updates', keywords: ['updates', 'new version', 'release', 'github'] },
     { id: 'install-count', cat: 'server', label: 'Count this server in the anonymous install count', when: ['web'],
       keywords: ['telemetry', 'analytics', 'install ping', 'privacy', 'statistics'] },
@@ -67,7 +65,7 @@ export const ADMIN_SETTINGS: SettingsIndex = {
     { id: 'fill-details', cat: 'series', label: 'Fill in missing details', keywords: ['anilist', 'metadata', 'description', 'author', 'cover'] },
     { id: 'borrow-names', cat: 'series', label: 'Borrow chapter names from other sources', keywords: ['chapter titles', 'chapter names'] },
     { id: 'discover-lookups', cat: 'series', label: 'Match Discover titles online', keywords: ['discover', 'anilist', 'mangadex', 'mangaupdates', 'duplicates'] },
-    { id: 'mihon-missing', cat: 'series', more: 'series-more', label: 'Show missing chapters in Mihon', when: ['web'],
+    { id: 'mihon-missing', cat: 'series', label: 'Show missing chapters in Mihon', when: ['web'],
       keywords: ['komga', 'ghost chapters', 'tachiyomi', 'trackers'] },
 
     // ---- Downloads ----
@@ -89,10 +87,10 @@ export const ADMIN_SETTINGS: SettingsIndex = {
     { id: 'delete-read', cat: 'downloads', label: 'Delete read chapters', keywords: ['cleanup', 'free space', 'disk space'] },
     { id: 'delete-read-days', cat: 'downloads', label: 'Wait (days)', keywords: ['cleanup delay'] },
     { id: 'mangadex-languages', cat: 'downloads', label: 'MangaDex languages', keywords: ['mangadex', 'languages', 'translations'] },
-    { id: 'sources-per-series', cat: 'downloads', more: 'downloads-more', label: 'Other sources per series',
+    { id: 'sources-per-series', cat: 'downloads', label: 'Other sources per series',
       keywords: ['more sources', 'followed sources', 'sources per series', 'multiple sources', 'follow limit', 'MAX_FOLLOWED_SOURCES'],
       help: 'How many sources besides its main one a series may follow, whether you add them or Uchiyomi finds them. 3 by default. Each one is one more chapter list to ask for at every library update.' },
-    { id: 'smart-checks', cat: 'downloads', more: 'downloads-more', label: 'Smart update checks', keywords: ['quiet series', 'check less often', 'release radar', 'sweep'] },
+    { id: 'smart-checks', cat: 'downloads', label: 'Smart update checks', keywords: ['quiet series', 'check less often', 'release radar', 'sweep'] },
 
     // ---- Maintenance ----
     { id: 'nightly-backup', cat: 'maintenance', label: 'Nightly backup', keywords: ['backup', 'database backup', 'dump', 'backup time'] },

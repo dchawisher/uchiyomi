@@ -602,8 +602,7 @@ function AddSources({ ready, overview, actions, repos, onChanged, onOpen, onRepo
         <MangadexLanguages sources={(overview?.sources ?? []).filter((s) => s.kind === 'mangadex')} onSaved={() => void onChanged()} />
         <div className="py-1"><UnstatedLanguageRow /></div>
         <div className="py-1">
-          <LinkRow href="/admin/import/" label={tr('Import a list')}
-            help={tr('A Mihon or Tachiyomi backup, a public MangaDex list, or pasted titles: you review every match before anything is added.')} />
+          <LinkRow href="/admin/import/" label={tr('Import a list')} />
         </div>
         <div className="py-1"><SourcePacksRow onDone={onChanged} /></div>
       </div>
@@ -635,8 +634,7 @@ function SourcePacksRow({ onDone }: { onDone: () => Promise<unknown> }) {
     setReloading(false);
   };
   return (
-    <Row label={tr('Source packs')}
-      help={tr('Mount a compiled source pack at the server’s {dir}, then reload: it is picked up with no restart.', { dir: 'SOURCES_DIR' })}>
+    <Row label={tr('Source packs')}>
       <button type="button" onClick={() => void reload()} disabled={reloading} className={`btn-key ${busyKey(reloading)}`} data-sources-reload>
         {reloading ? <Busy tone="muted">{tr('Reloading…')}</Busy> : tr('Reload sources')}
       </button>

@@ -253,9 +253,10 @@ export function Section({ title, description, icon, action, id, className, ref, 
  *
  * The padding is the place's (`RowPad`): the loose rhythm down a card, an inset row in a `RowGroup`, none in a `RowBlock`.
  */
-export function Row({ label, help, htmlFor, stacked, status, id, device, className, children }: {
+export function Row({ label, help, helpOnDemand, htmlFor, stacked, status, id, device, className, children }: {
   label: ReactNode;
   help?: ReactNode;
+  helpOnDemand?: boolean;
   htmlFor?: string;
   stacked?: boolean;
   status?: SaveStatus;
@@ -273,7 +274,14 @@ export function Row({ label, help, htmlFor, stacked, status, id, device, classNa
   const labelEl = htmlFor
     ? <label htmlFor={htmlFor} className="text-sm text-fog-100">{name}</label>
     : <p className="text-sm text-fog-100">{name}</p>;
-  const helpEl = help != null && help !== false ? <Help>{help}</Help> : null;
+  const helpEl = help != null && help !== false
+    ? helpOnDemand ? (
+      <details className="mt-1 text-[11px] text-fog-500">
+        <summary aria-label={tr('About {label}', { label: String(label) })}
+          className="w-fit cursor-pointer rounded-full px-1 text-fog-300 focus-visible:outline focus-visible:outline-accent">ⓘ</summary>
+        <Help>{help}</Help>
+      </details>
+    ) : <Help>{help}</Help> : null;
   if (stacked) {
     return (
       <div id={id} className={`${pad} ${className ?? ''}`}>
@@ -305,9 +313,10 @@ export function Row({ label, help, htmlFor, stacked, status, id, device, classNa
  * server refused. It is NOT disabled while saving -- a disabled button drops focus, and keyboard users
  * would lose their place on every flip.
  */
-export function SwitchRow({ label, help, on, disabled, id, device, onChange }: {
+export function SwitchRow({ label, help, helpOnDemand, on, disabled, id, device, onChange }: {
   label: string;
   help?: ReactNode;
+  helpOnDemand?: boolean;
   on: boolean;
   disabled?: boolean;
   id?: string;
@@ -326,7 +335,7 @@ export function SwitchRow({ label, help, on, disabled, id, device, onChange }: {
     if (!ok) setLocal(on);
   };
   return (
-    <Row id={id} label={label} help={help} status={status} device={device}>
+    <Row id={id} label={label} help={help} helpOnDemand={helpOnDemand} status={status} device={device}>
       <Switch on={local} onChange={(next) => { void flip(next); }} disabled={disabled} label={label} />
     </Row>
   );

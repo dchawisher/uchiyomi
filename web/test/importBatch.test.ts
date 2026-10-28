@@ -172,7 +172,6 @@ test('Admin → Sources has one way to import: the reviewed flow', () => {
   assert.doesNotMatch(src, /'\/api\/admin\/import'[,)]/, 'the one-shot POST /api/admin/import is back in the UI');
   assert.doesNotMatch(src, /\/api\/admin\/import\/(parse|status)/, 'the old parse/status calls are back');
   assert.doesNotMatch(src, /without a review step/, 'the "or, without a review step" fork is back');
-  assert.match(src, /you review every match before anything is added\./, 'the row no longer says what the flow is');
 });
 
 /**

@@ -2214,7 +2214,6 @@ function SeriesInner() {
           danger
           busy={busyAdmin}
           confirmLabel={tr('Remove')}
-          confirmText={series.name}
           body={
             <>
               {/* An edition goes on its own: the work's other languages stay, and the Library's card shows them. */}
