@@ -2252,7 +2252,7 @@ function SeriesInner() {
           onSaved={() => { for (const k of [['series-books', id], ['series', id], ['home']]) qc.invalidateQueries({ queryKey: k }); }} />
       )}
       {collecting && <CollectionSheet seriesId={id} onClose={() => setCollecting(false)} />}
-      {volumeLookup && series && <ChapterManager series={series} books={allBooks} target={volumeLookup} onMark={markChapter} onClose={() => setVolumeLookup(null)}
+      {volumeLookup && series && <ChapterManager series={series} books={allBooks} listed={ghosts} target={volumeLookup} onMark={markChapter} onClose={() => setVolumeLookup(null)}
         onSaved={() => { for (const k of [['series-books', id], ['series', id], ['series-listing', id], ['library'], ['home']]) qc.invalidateQueries({ queryKey: k }); }} />}
       {addingLang && series && (
         <AddSeriesDialog seed={{ kind: 'edition', of: id, title, ...addingLang }} sources={[]} mayFollow={isAdmin}

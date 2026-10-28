@@ -17,8 +17,8 @@ const valid = (d: Draft) => d.title.length <= 300 && number(d.first) && (!d.volu
   && Number(d.last) >= Number(d.first) && Number(d.last) - Number(d.first) <= 1000
   && (!d.volEnd.trim() || (number(d.volEnd) && Number(d.volEnd) >= Number(d.vol)))));
 
-export default function ChapterManager({ series, books, target, onClose, onSaved, onMark }: {
-  series: Series; books: Book[]; target?: { bookId?: string; volume?: number };
+export default function ChapterManager({ series, books, listed, target, onClose, onSaved, onMark }: {
+  series: Series; books: Book[]; listed: ReadonlyArray<{ number: number }>; target?: { bookId?: string; volume?: number };
   onClose: () => void; onSaved: () => void; onMark: (b: Book, mode: 'read' | 'unread') => Promise<void>;
 }) {
   const [tab, setTab] = useState<'files' | 'lookup'>(target?.bookId ? 'lookup' : 'files');
@@ -29,7 +29,7 @@ export default function ChapterManager({ series, books, target, onClose, onSaved
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const byId = useMemo(() => new Map(books.map(b => [b.id, b])), [books]);
-  const known = useMemo(() => new Set(books.map(b => Number(b.number.toFixed(3)))), [books]);
+  const known = useMemo(() => new Set([...books, ...listed].map(b => Number(b.number.toFixed(3)))), [books, listed]);
   const kind = (b: Book) => b.volumeNumber != null ? 'volume' : Number.isInteger(b.number) ? 'chapter'
     : b.keepSeparate || (Math.round((b.number % 1) * 1000) === 500 && !known.has(Math.floor(b.number) + 0.4)) ? 'bonus' : 'part';
   const labels = { volume: tr('Volume'), chapter: tr('Chapter'), bonus: tr('Bonus'), part: tr('Part') };
