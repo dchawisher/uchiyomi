@@ -1,16 +1,21 @@
 'use client';
-import { useMemo, useRef, useState } from 'react';
+import { Fragment, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { chapterLabel } from '@/lib/format';
 import { t as tr } from '@/lib/i18n';
 import type { Book, Series } from '@/lib/types';
 import { Modal, msgOf } from './ConfirmDialog';
 import VolumeRangeLookup from './VolumeRangeLookup';
 import ChapterGrouping from './ChapterGrouping';
 import ChapterGroupingSettings from './ChapterGroupingSettings';
-import { chapterTree, filterChapterTree, type ChapterNode } from '@/lib/chapterTree';
-import { useContextMenu, type MenuItem } from './ContextMenu';
+import { chapterTree, filterChapterTree, type ChapterNode, type ChapterTreeEntry } from '@/lib/chapterTree';
 
+type SourceChapter = ChapterTreeEntry & {
+  name:string; pagesCount:number|null; status:string;
+  coveredBy:{kind:'volume'|'chapter';number:number;end?:number|null}|null;
+};
+type Entry = ChapterTreeEntry & {name:string; chapterName?:string|null; pagesCount:number|null; remote?:SourceChapter};
+type Node = ChapterNode<Entry>;
 const field = 'w-full min-w-0 rounded-lg border border-ink-700 bg-ink-900 px-2 py-1.5 text-sm';
 type Draft = { id: string; title: string; volume: boolean; vol: string; volEnd: string; first: string; last: string };
 const seed = (b: Book): Draft => ({ id: b.id, title: b.metadata?.title ?? b.name, volume: b.volumeNumber != null,
@@ -29,23 +34,31 @@ export default function ChapterManager({ series, books, listed, target, onClose,
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [grouping, setGrouping] = useState<Book | null>(null);
+  const [grouping, setGrouping] = useState<Entry | null>(null);
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const searchRef = useRef<HTMLInputElement>(null);
-  const menuBook = useRef<Book | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const qc = useQueryClient();
+  const queryKey = ['chapter-management', series.id];
+  const sources = useQuery({queryKey, queryFn:()=>api<{content:SourceChapter[]}>(`/api/admin/series/${series.id}/chapter-grouping`)});
+  const changed = () => { void qc.invalidateQueries({queryKey}); onSaved(); };
+  const entries = useMemo<Entry[]>(()=>{
+    const localNumbers=new Set(books.filter(b=>b.volumeNumber==null&&b.numberEnd==null).map(b=>Number(b.number.toFixed(3))));
+    return [...books.map(b=>({...b,pagesCount:b.media.pagesCount})),
+      ...(sources.data?.content??[]).filter(r=>!localNumbers.has(Number(r.number.toFixed(3)))).map(r=>({...r,chapterName:r.name,remote:r}))];
+  },[books,sources.data]);
   const byId = useMemo(() => new Map(books.map(b => [b.id, b])), [books]);
-  const known = useMemo(() => new Set([...books, ...listed].map(b => Number(b.number.toFixed(3)))), [books, listed]);
-  const tree = useMemo(() => chapterTree(books, known), [books, known]);
+  const known = useMemo(() => new Set([...entries, ...listed].map(b => Number(b.number.toFixed(3)))), [entries, listed]);
+  const tree = useMemo(() => chapterTree(entries, known), [entries, known]);
   const filtered = useMemo(() => filterChapterTree(tree, node => !!node.book
     && (filter === 'all' || node.kind === filter || (filter === 'chapter' && node.kind === 'bonus'))
-    && `${node.book.name} ${node.book.metadata?.title ?? ''} ${chapterLabel(node.book)}`.toLowerCase().includes(search.toLowerCase())), [tree, filter, search]);
+    && `${node.book.name} ${node.book.chapterName ?? ''} ${node.number} ${node.book.volumeNumber ?? ''}`.toLowerCase().includes(search.toLowerCase())), [tree, filter, search]);
   const pages = Math.max(1, Math.ceil(filtered.length / 50));
   const current = Math.min(page, pages - 1);
   const act = async (fn: () => Promise<unknown>) => {
     setBusy(true); setError('');
-    try { await fn(); onSaved(); return true; }
+    try { await fn(); changed(); return true; }
     catch (e) { setError(msgOf(e, tr('Could not save'))); return false; }
     finally { setBusy(false); }
   };
@@ -65,22 +78,8 @@ export default function ChapterManager({ series, books, listed, target, onClose,
   const closeGrouping = () => {
     const id = grouping?.id;
     setGrouping(null);
-    requestAnimationFrame(() => (document.getElementById(`actions-${id}`) ?? searchRef.current)?.focus());
+    requestAnimationFrame(() => (document.getElementById(`grouping-${id}`) ?? searchRef.current)?.focus());
   };
-  const menu = useContextMenu(() => {
-    const b = menuBook.current;
-    if (!b) return [];
-    const items: MenuItem[] = [
-      { label: tr('Edit'), disabled: busy, onSelect: () => { setError(''); setDraft(seed(b)); } },
-      { label: b.readProgress?.completed ? tr('Mark unread') : tr('Mark read'), disabled: busy,
-        onSelect: async () => { await act(() => onMark(b, b.readProgress?.completed ? 'unread' : 'read')); } },
-    ];
-    const parent = b.alternateOf ? byId.get(b.alternateOf) : undefined;
-    if (b.volumeNumber == null) {
-      items.push({ label: tr('Change grouping'), disabled: busy, onSelect: () => { setError(''); setGrouping(b); } });
-    }
-    return items;
-  }, { label: tr('Actions') });
   if (grouping) return <Modal wide title={tr('Change grouping for chapter {number}', { number: grouping.number })}
     onClose={() => { if (!busy) closeGrouping(); }} fieldFocus={false}>
     <ChapterGrouping book={grouping} busy={busy} error={error}
@@ -90,87 +89,74 @@ export default function ChapterManager({ series, books, listed, target, onClose,
         }))) closeGrouping();
       }} />
   </Modal>;
-  if (draft) return <Modal wide title={tr('Edit chapter or volume')} onClose={() => { if (!busy) closeDraft(); }}>
-    <form onSubmit={e => { e.preventDefault(); if (!busy) void save(); }}>
-      <fieldset disabled={busy} className="grid gap-4 sm:grid-cols-2">
-        <label className="text-sm sm:col-span-2">{tr('Title')}<input autoFocus maxLength={300} className={`${field} mt-1`} value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} /></label>
-        <label className="text-sm sm:col-span-2">{tr('File contains')}
-          <select className={`${field} mt-1`} value={draft.volume ? 'volume' : 'chapter'} onChange={e => setDraft({ ...draft, volume: e.target.value === 'volume' })}>
-            <option value="chapter">{tr('Chapter')}</option><option value="volume">{tr('Volume')}</option>
-          </select>
-        </label>
-        {draft.volume && <>
-          <label className="text-sm">{tr('First volume')}<input inputMode="decimal" className={`${field} mt-1`} value={draft.vol} onChange={e => setDraft({ ...draft, vol: e.target.value })} /></label>
-          <label className="text-sm">{tr('Last volume (omnibus only)')}<input inputMode="decimal" className={`${field} mt-1`} value={draft.volEnd} onChange={e => setDraft({ ...draft, volEnd: e.target.value })} /></label>
-        </>}
-        <label className="text-sm">{tr('First chapter')}<input inputMode="decimal" className={`${field} mt-1`} value={draft.first} onChange={e => setDraft({ ...draft, first: e.target.value })} /></label>
-        {draft.volume && <label className="text-sm">{tr('Last chapter')}<input inputMode="decimal" className={`${field} mt-1`} value={draft.last} onChange={e => setDraft({ ...draft, last: e.target.value })} /></label>}
-      </fieldset>
-      {error && <p role="alert" className="mt-3 text-sm text-red-300">{error}</p>}
-      <div className="mt-5 flex justify-end gap-2">
-        <button type="button" className="btn-key" disabled={busy} onClick={closeDraft}>{tr('Cancel')}</button>
-        <button type="submit" className="btn-key btn-key-primary" disabled={busy || !valid(draft)}>{tr('Save')}</button>
-      </div>
-    </form>
-  </Modal>;
-  const nodeTitle = (node: ChapterNode) => node.kind === 'volume'
+  const nodeTitle = (node: Node) => node.kind === 'volume'
     ? tr('Volume {number}', { number: `${node.book!.volumeNumber}${node.book!.volumeNumberEnd != null && node.book!.volumeNumberEnd > node.book!.volumeNumber! ? `–${node.book!.volumeNumberEnd}` : ''}` })
     : node.book?.grouping?.role === 'first' ? tr('Part 1 (listed as {number})', { number: node.number })
       : node.kind === 'part' ? tr('Part {number}', { number: node.number })
       : node.kind === 'bonus' ? node.book?.keepSeparate || node.book?.grouping?.manual ? tr('Chapter {number}', { number: node.number }) : tr('Bonus chapter {number}', { number: node.number })
         : tr('Chapter {number}', { number: node.number });
-  const renderNodes = (nodes: ChapterNode[], nested = false) => <ul className={nested ? 'ms-3 sm:ms-4' : ''}>
-    {nodes.map(node => {
-      const b = node.book;
-      const parent = b?.alternateOf ? byId.get(b.alternateOf) : undefined;
-      const open = !collapsed.has(node.id) || !!search || filter !== 'all';
-      const title = nodeTitle(node);
-      return <li key={node.id} data-node-id={node.id}
-        className={nested ? 'relative ps-5 before:absolute before:start-0 before:top-0 before:bottom-0 before:border-s before:border-fog-500 last:before:bottom-auto last:before:h-7' : ''}>
-        {nested && <span aria-hidden="true" className="absolute start-0 top-7 w-4 border-t border-fog-500" />}
-        <div data-book-id={b?.id} className="min-w-0 border-b border-ink-800 py-3">
-          <div className="flex min-w-0 items-start gap-2">
-            {node.children.length > 0 && <button type="button" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-fog-200 hover:bg-ink-800"
-              aria-label={open ? tr('Collapse {name}', { name: title }) : tr('Expand {name}', { name: title })}
-              aria-expanded={open} aria-controls={`children-${node.id}`} disabled={busy || !!search || filter !== 'all'}
-              onClick={() => setCollapsed(prev => { const next = new Set(prev); if (next.has(node.id)) next.delete(node.id); else next.add(node.id); return next; })}>
-              <span aria-hidden="true">{open ? '▾' : '▸'}</span>
-            </button>}
-            <div className="min-w-0 flex-1">
-              <div className="flex min-h-8 flex-wrap items-center gap-x-3 gap-y-1">
-                <span className="font-medium text-fog-100" title={b?.name}>{title}</span>
-                {b && b.media.pagesCount > 0 && <span className="text-xs text-fog-400">{b.media.pagesCount === 1 ? tr('1 page') : tr('{n} pages', { n: b.media.pagesCount })}</span>}
-              </div>
-              {b?.volumeNumber != null && <p className="text-sm text-fog-300">{tr('Chapters {range}', { range: `${b.number}${b.numberEnd != null && b.numberEnd > b.number ? `–${b.numberEnd}` : ''}` })}</p>}
-              {b ? <>
-                {b.chapterName && <p className="text-sm text-fog-300">{b.chapterName}</p>}
-                <p data-reading-status className="mt-1 text-sm leading-relaxed text-fog-300">
-                  {parent?.volumeNumber != null
-                    ? tr('Volume {number} covers this chapter, so it isn’t listed separately.', { number: `${parent.volumeNumber}${parent.volumeNumberEnd != null && parent.volumeNumberEnd > parent.volumeNumber ? `–${parent.volumeNumberEnd}` : ''}` })
-                    : parent ? tr('Chapter {number} is shown instead of this part.', { number: parent.number })
-                      : b.alternateOf ? tr('Not shown as a separate entry.') : tr('Shown in the reading list.')}
-                </p>
-              </> : <p className="text-sm text-fog-400">{tr('Parts are grouped here by chapter number.')}</p>}
-            </div>
-            {b && <button id={`actions-${b.id}`} type="button" className="btn-key shrink-0" disabled={busy}
-              aria-haspopup="menu" aria-label={tr('Actions for {name}', { name: title })}
-              onClick={e => { menuBook.current = b; menu.openFrom(e.currentTarget); }}>⋯</button>}
-          </div>
-        </div>
-        {node.children.length > 0 && <div id={`children-${node.id}`} hidden={!open}>{renderNodes(node.children, true)}</div>}
-      </li>;
-    })}
-  </ul>;
-  return <Modal wide="table" title={tr('Manage chapters')} onClose={() => { if (!busy) onClose(); }} fieldFocus={false}>
-    {menu.element}
-    <div className="mb-4 flex flex-wrap gap-2" role="tablist" aria-label={tr('Manage chapters')}>
+  const statusOf = (node:Node, parent?:Book) => {
+    const b=node.book;
+    if(!b) return '';
+    const cover=b.remote?.coveredBy ?? (parent ? {kind:parent.volumeNumber!=null?'volume':'chapter',number:parent.volumeNumber??parent.number} : null);
+    if(b.remote&&cover?.kind==='chapter'&&!books.some(file=>file.number===cover.number&&file.volumeNumber==null&&!file.pruned&&!file.missingPages?.length))
+      return tr('Download chapter {number} instead',{number:cover.number});
+    if(cover) return cover.kind==='volume' ? tr('Covered by volume {number}',{number:cover.number}) : tr('Covered by chapter {number}',{number:cover.number});
+    if(!b.remote) return byId.get(b.id)?.pruned ? tr('File removed') : tr('On server');
+    if(b.remote.status==='available') return tr('Available to download');
+    if(b.remote.status==='blocked') return tr('Source blocked');
+    if(b.remote.status==='held') return tr('Waiting for preferred release');
+    if(b.remote.status==='ignored') return tr('Excluded from downloads');
+    return tr('Not selected for download');
+  };
+  const renderNodes = (nodes:Node[], ancestors:boolean[]=[], nested=false):React.ReactNode => nodes.map((node,index)=>{
+    const b=node.book,local=b?byId.get(b.id):undefined;
+    const parent=b?.alternateOf?byId.get(b.alternateOf):undefined;
+    const last=index===nodes.length-1;
+    const prefix=nested?ancestors.map(end=>end?'  ':'│ ').join('')+(last?'└─':'├─'):'';
+    const open=!collapsed.has(node.id)||!!search||filter!=='all';
+    const title=nodeTitle(node);
+    const editing=!!b&&draft?.id===b.id;
+    const change=(patch:Partial<Draft>)=>setDraft(d=>d?{...d,...patch}:d);
+    const kindLabel=node.kind==='volume'?tr('Volume'):node.kind==='part'?tr('Part'):node.kind==='bonus'?tr('Extra'):tr('Chapter');
+    return <Fragment key={node.id}>
+      <tr data-node-id={node.id} data-book-id={b?.id} data-remote={!!b?.remote} className="border-b border-ink-800 [&>td]:px-2 [&>td]:py-1">
+        <td><div className="flex min-h-7 min-w-0 items-center">
+          <span aria-hidden="true" className="shrink-0 whitespace-pre font-mono text-base leading-none text-fog-500">{prefix}</span>
+          {node.children.length>0?<button type="button" className="h-7 w-6 shrink-0 rounded text-fog-300 hover:bg-ink-800"
+            aria-label={open?tr('Collapse {name}',{name:title}):tr('Expand {name}',{name:title})} aria-expanded={open}
+            disabled={busy||!!draft||!!search||filter!=='all'} onClick={()=>setCollapsed(prev=>{const next=new Set(prev);if(next.has(node.id))next.delete(node.id);else next.add(node.id);return next;})}>{open?'▾':'▸'}</button>:<span className="w-6 shrink-0"/>}
+          {editing?<input aria-label={tr('Title')} className={field} maxLength={300} value={draft.title} onChange={e=>change({title:e.target.value})}/>
+            :<span className="min-w-0 truncate" title={b?.name||title}>{b?.name||title}</span>}
+        </div></td>
+        <td>{editing?<select aria-label={tr('Type')} className={field} value={draft.volume?'volume':'chapter'} onChange={e=>change({volume:e.target.value==='volume'})}><option value="chapter">{tr('Chapter')}</option><option value="volume">{tr('Volume')}</option></select>:kindLabel}</td>
+        <td>{editing&&draft.volume?<div className="flex gap-1"><input aria-label={tr('First volume')} inputMode="decimal" className={field} value={draft.vol} onChange={e=>change({vol:e.target.value})}/><input aria-label={tr('Last volume (omnibus only)')} inputMode="decimal" className={field} value={draft.volEnd} onChange={e=>change({volEnd:e.target.value})}/></div>
+          :b?.volumeNumber!=null?`${b.volumeNumber}${b.volumeNumberEnd!=null&&b.volumeNumberEnd>b.volumeNumber?'–'+b.volumeNumberEnd:''}`:'—'}</td>
+        <td className="tabular-nums">{editing?<div className="flex gap-1"><input aria-label={tr('First chapter')} inputMode="decimal" className={field} value={draft.first} onChange={e=>change({first:e.target.value})}/>{draft.volume&&<input aria-label={tr('Last chapter')} inputMode="decimal" className={field} value={draft.last} onChange={e=>change({last:e.target.value})}/>}</div>
+          :`${node.number}${b?.numberEnd!=null&&b.numberEnd>node.number?'–'+b.numberEnd:''}`}</td>
+        <td className="tabular-nums text-fog-400">{b?b.pagesCount||'—':''}</td>
+        <td data-reading-status className="text-xs text-fog-300">{statusOf(node,parent)}</td>
+        <td><div className="flex items-center gap-2 whitespace-nowrap text-xs">
+          {editing?<><button className="btn-key" disabled={busy||!valid(draft)} onClick={()=>void save()}>{tr('Save')}</button><button className="btn-key" disabled={busy} onClick={closeDraft}>{tr('Cancel')}</button></>
+            :<>{local&&<><button id={`actions-${local.id}`} className="py-1 text-accent hover:underline" disabled={busy||!!draft} onClick={()=>setDraft(seed(local))}>{tr('Edit')}</button>
+              <button className="py-1 text-accent hover:underline" disabled={busy||!!draft} onClick={()=>void act(()=>onMark(local,local.readProgress?.completed?'unread':'read'))}>{local.readProgress?.completed?tr('Mark unread'):tr('Mark read')}</button></>}
+              {b&&b.volumeNumber==null&&<button id={`grouping-${b.id}`} className="py-1 text-accent hover:underline" disabled={busy||!!draft} aria-label={tr('Change grouping for chapter {number}',{number:b.number})} onClick={()=>{setError('');setGrouping(b);}}>{tr('Change grouping')}</button>}
+              {b?.grouping?.manual&&<span className="text-accent" title={tr('Manual choices stay in place until you change them.')}>{tr('Manual')}</span>}
+            </>}
+        </div></td>
+      </tr>
+      {open&&node.children.length>0&&renderNodes(node.children,nested?[...ancestors,last]:[],true)}
+    </Fragment>;
+  });
+  return <Modal wide="manager" title={tr('Manage chapters')} onClose={() => { if (!busy) onClose(); }} fieldFocus={false}>
+    <div className="mb-3 flex flex-wrap gap-2" role="tablist" aria-label={tr('Manage chapters')}>
       {(['files', 'settings', 'lookup'] as const).map(t => <button key={t} role="tab" aria-selected={tab === t} disabled={busy || !!draft}
-        className={`btn-key ${tab === t ? 'text-accent' : ''}`} onClick={() => setTab(t)}>{t === 'files' ? tr('Files') : t === 'settings' ? tr('Grouping settings') : tr('Look up chapter ranges')}</button>)}
+        className={`btn-key ${tab === t ? 'text-accent' : ''}`} onClick={() => setTab(t)}>{t === 'files' ? tr('Chapters') : t === 'settings' ? tr('Grouping settings') : tr('Look up chapter ranges')}</button>)}
     </div>
     {tab === 'lookup' ? <VolumeRangeLookup embedded seriesId={series.id} title={series.metadata?.title || series.name} target={target}
-      onClose={() => setTab('files')} onSaved={onSaved} /> : tab === 'settings' ? <>
+      onClose={() => setTab('files')} onSaved={changed} /> : tab === 'settings' ? <>
       {error && <p role="alert" className="mb-3 text-sm text-red-300">{error}</p>}
-      <ChapterGroupingSettings series={series} busy={busy} onBusy={setBusy} onSaved={onSaved}
+      <ChapterGroupingSettings series={series} busy={busy} onBusy={setBusy} onSaved={changed}
         onChange={partDetection => act(() => api(`/api/admin/series/${series.id}`, {method:'PATCH',json:{partDetection}}))} />
     </> : <>
       <div className="mb-3 flex flex-wrap items-center gap-3">
@@ -187,12 +173,18 @@ export default function ChapterManager({ series, books, listed, target, onClose,
         <button className="btn-key" disabled={busy || !!search || filter !== 'all'} onClick={() => setCollapsed(new Set())}>{tr('Expand all')}</button>
         <button className="btn-key" disabled={busy || !!search || filter !== 'all'} onClick={() => {
           const ids = new Set<string>();
-          const collect = (nodes: ChapterNode[]) => nodes.forEach(n => { if (n.children.length) ids.add(n.id); collect(n.children); });
+          const collect = (nodes: Node[]) => nodes.forEach(n => { if (n.children.length) ids.add(n.id); collect(n.children); });
           collect(tree); setCollapsed(ids);
         }}>{tr('Collapse all')}</button>
       </div>
-      <div data-chapter-manager aria-label={tr('Volumes, chapters and parts')}>
-        {renderNodes(filtered.slice(current * 50, current * 50 + 50))}
+      {sources.isLoading && <p role="status" className="py-2 text-sm text-fog-400">{tr('Loading source chapters…')}</p>}
+      {sources.isError && <p role="alert" className="py-2 text-sm text-red-300">{tr('Could not load source chapters.')} <button className="underline" onClick={()=>void sources.refetch()}>{tr('Retry')}</button></p>}
+      <div className="overflow-x-auto" data-lenis-prevent-horizontal>
+        <table className="w-full min-w-[1080px] table-fixed text-sm" data-chapter-manager aria-label={tr('Volumes, chapters and parts')}>
+          <colgroup><col/><col className="w-24"/><col className="w-24"/><col className="w-28"/><col className="w-16"/><col className="w-52"/><col className="w-64"/></colgroup>
+          <thead className="text-xs text-fog-400"><tr>{[tr('File / source chapter'),tr('Type'),tr('Volume'),tr('Chapters'),tr('Pages'),tr('Availability'),tr('Actions')].map(h=><th key={h} className="border-b border-ink-700 px-2 py-2 text-start font-medium">{h}</th>)}</tr></thead>
+          <tbody>{renderNodes(filtered.slice(current * 50, current * 50 + 50))}</tbody>
+        </table>
       </div>
       {!filtered.length && <p className="py-4 text-sm text-fog-400">{tr('No matching chapters')}</p>}
       {pages > 1 && <div className="mt-3 flex items-center justify-end gap-3 text-sm">

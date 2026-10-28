@@ -5,7 +5,7 @@ import { t as tr } from '@/lib/i18n';
 
 export type GroupingChoice = { role: 'auto' | 'extra' | 'part' | 'first' | 'complete'; parentNumber?: number };
 export default function ChapterGrouping({ book, busy, error, onSave, onCancel }: {
-  book: Book; busy: boolean; error: string;
+  book: Pick<Book, 'number' | 'grouping' | 'keepSeparate'>; busy: boolean; error: string;
   onSave: (choice: GroupingChoice) => Promise<void>; onCancel: () => void;
 }) {
   const initial:GroupingChoice['role']=book.grouping?.manual

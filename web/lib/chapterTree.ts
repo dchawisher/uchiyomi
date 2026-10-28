@@ -1,15 +1,16 @@
 import type { Book } from './types';
 
 export type ChapterKind = 'volume' | 'chapter' | 'bonus' | 'part';
-export interface ChapterNode {
+export type ChapterTreeEntry = Pick<Book, 'id' | 'number' | 'numberEnd' | 'volumeNumber' | 'volumeNumberEnd' | 'alternateOf' | 'keepSeparate' | 'grouping'>;
+export interface ChapterNode<T extends ChapterTreeEntry = Book> {
   id: string;
   number: number;
   kind: ChapterKind;
-  book?: Book;
-  children: ChapterNode[];
+  book?: T;
+  children: ChapterNode<T>[];
 }
 
-export function chapterKind(book: Book, known: ReadonlySet<number>): ChapterKind {
+export function chapterKind(book: ChapterTreeEntry, known: ReadonlySet<number>): ChapterKind {
   if (book.volumeNumber != null) return 'volume';
   if (book.grouping) return book.grouping.role === 'extra' ? 'bonus'
     : book.grouping.role === 'first' ? 'part' : book.grouping.role;
@@ -19,13 +20,13 @@ export function chapterKind(book: Book, known: ReadonlySet<number>): ChapterKind
 }
 
 /** Containment and numbering, not reading-list visibility. Keep every file exactly once. */
-export function chapterTree(books: readonly Book[], known: ReadonlySet<number>): ChapterNode[] {
-  const roots: ChapterNode[] = [];
+export function chapterTree<T extends ChapterTreeEntry>(books: readonly T[], known: ReadonlySet<number>): ChapterNode<T>[] {
+  const roots: ChapterNode<T>[] = [];
   const nodes = new Map(books.map(book => [book.id, {
     id: book.id, number: book.number, kind: chapterKind(book, known), book, children: [],
-  } as ChapterNode]));
+  } as ChapterNode<T>]));
   const volumes = [...nodes.values()].filter(n => n.kind === 'volume').sort(compare);
-  const container = new Map<string, ChapterNode | undefined>();
+  const container = new Map<string, ChapterNode<T> | undefined>();
   for (const node of nodes.values()) {
     if (node.kind === 'volume') { roots.push(node); continue; }
     const parent = node.book?.alternateOf ? nodes.get(node.book.alternateOf) : undefined;
@@ -34,8 +35,8 @@ export function chapterTree(books: readonly Book[], known: ReadonlySet<number>):
     container.set(node.id, parent?.kind === 'volume' ? parent : volumes.find(v =>
       v.book!.numberEnd != null && node.number >= v.number && node.number <= v.book!.numberEnd));
   }
-  const chapters = new Map<string, ChapterNode>();
-  const key = (volume: ChapterNode | undefined, number: number) => `${volume?.id ?? 'root'}:${number}`;
+  const chapters = new Map<string, ChapterNode<T>>();
+  const key = (volume: ChapterNode<T> | undefined, number: number) => `${volume?.id ?? 'root'}:${number}`;
   for (const node of nodes.values()) {
     if (node.kind === 'volume' || node.kind === 'part') continue;
     const volume = container.get(node.id);
@@ -58,17 +59,17 @@ export function chapterTree(books: readonly Book[], known: ReadonlySet<number>):
     }
     parent.children.push(node);
   }
-  const sort = (list: ChapterNode[]) => { list.sort(compare); list.forEach(n => sort(n.children)); };
+  const sort = (list: ChapterNode<T>[]) => { list.sort(compare); list.forEach(n => sort(n.children)); };
   sort(roots);
   return roots;
 }
 
-function compare(a: ChapterNode, b: ChapterNode): number {
+function compare(a: ChapterNode<ChapterTreeEntry>, b: ChapterNode<ChapterTreeEntry>): number {
   return a.number - b.number || Number(b.kind === 'volume') - Number(a.kind === 'volume') || a.id.localeCompare(b.id);
 }
 
 /** Retain ancestors of matches so searching/filtering never detaches a part from its chapter/volume. */
-export function filterChapterTree(nodes: readonly ChapterNode[], matches: (node: ChapterNode) => boolean): ChapterNode[] {
+export function filterChapterTree<T extends ChapterTreeEntry>(nodes: readonly ChapterNode<T>[], matches: (node: ChapterNode<T>) => boolean): ChapterNode<T>[] {
   return nodes.flatMap(node => {
     const children = filterChapterTree(node.children, matches);
     return matches(node) || children.length ? [{ ...node, children }] : [];

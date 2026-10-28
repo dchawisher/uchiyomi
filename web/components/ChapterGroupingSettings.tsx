@@ -19,21 +19,21 @@ export default function ChapterGroupingSettings({series,busy,onBusy,onSaved,onCh
     {value:'aggressive',title:tr('Aggressive'),body:tr('Any decimal entry can be a part, including a lone .5.')},
     {value:'off',title:tr('Off'),body:tr('Only your manual associations are used.')},
   ] as const;
-  return <div className="max-w-2xl space-y-5">
-    <fieldset disabled={busy} className="space-y-2">
-      <legend className="mb-3 text-base font-medium">{tr('Automatic part detection')}</legend>
-      {options.map(o=><label key={o.value} className={`flex cursor-pointer gap-3 rounded-xl border p-3 ${mode===o.value?'border-accent bg-accent-soft':'border-ink-700'}`}>
+  return <div className="max-w-3xl space-y-3">
+    <fieldset disabled={busy} className="divide-y divide-ink-800">
+      <legend className="mb-2 text-sm font-medium">{tr('Automatic part detection')}</legend>
+      {options.map(o=><label key={o.value} className={`flex cursor-pointer items-start gap-3 rounded px-2 py-2 ${mode===o.value?'bg-accent-soft':'border-ink-700'}`}>
         <input type="radio" name="part-detection" checked={mode===o.value} onChange={async()=>{const previous=mode;setMode(o.value);if(!await onChange(o.value))setMode(previous);}} className="mt-1 shrink-0" />
-        <span><span className="block font-medium">{o.title}</span><span className="mt-1 block text-sm leading-relaxed text-fog-300">{o.body}</span></span>
+        <span className="min-w-0 sm:grid sm:grid-cols-[10rem_1fr] sm:gap-3"><span className="block text-sm font-medium">{o.title}</span><span className="block text-sm leading-snug text-fog-300">{o.body}</span></span>
       </label>)}
     </fieldset>
-    <div className="space-y-3 text-sm leading-relaxed text-fog-300">
+    <div className="space-y-2 text-sm leading-snug text-fog-300">
       <p>{tr('At every level, a complete chapter must have at least the combined page count of its parts, minus four pages per part for repeated covers or adverts. If a page count is unknown, the parts stay in the reading list.')}</p>
       <p>{tr('If there are multiple parts but no .1, the entry without a suffix is treated as the first part. For example, 20, 20.2 and 20.3 are read as three parts, not a complete chapter and two duplicates.')}</p>
       <p>{tr('Your manual associations always take priority. Changing this setting does not erase them.')}</p>
     </div>
-    <div className="border-t border-ink-700 pt-4">
-      <p className="mb-3 text-sm leading-relaxed text-fog-300">{tr('Some sources include page counts in their listings. For others, we can count their page URLs without downloading the images.')}</p>
+    <div className="border-t border-ink-700 pt-3">
+      <p className="mb-2 text-sm leading-snug text-fog-300">{tr('Some sources include page counts in their listings. For others, we can count their page URLs without downloading the images.')}</p>
       <button className="btn-key" disabled={busy} onClick={async()=>{
         onBusy(true);setChecking(true);setError('');
         try { setReport(await api(`/api/admin/series/${series.id}/chapter-page-counts`,{method:'POST',json:{}}));onSaved(); }

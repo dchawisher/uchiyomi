@@ -225,3 +225,41 @@ test('new series default to careful; legacy keep-separate choices survive changi
   assert.equal((await get(20.1)).grouping.role,'extra');
   assert.equal((await get(20.1)).grouping.manual,true);
 });
+
+test('chapter manager includes undownloaded and covered releases; manual choices control pre-download coverage', {skip}, async()=>{
+  await mode('careful');
+  await writeListing([30,30.1,30.2]);
+  const entries=async()=> (await ok('GET',`/api/admin/series/${S}/chapter-grouping`)).content;
+  let rows=await entries();
+  assert.deepEqual(rows.map((r:any)=>r.number),[30,30.1,30.2]);
+  assert.equal(rows[0].pagesCount,40);
+  assert.equal(rows[1].pagesCount,10);
+  assert.deepEqual(rows[1].coveredBy,{kind:'chapter',number:30});
+  assert.equal((await q('SELECT id FROM lib_books WHERE series_id=$1 AND number>=30',[S])).length,0);
+  await manual(30,'complete');
+  await manual(30.1,'part',30);
+  await manual(30.2,'extra');
+  await mode('off');
+  rows=await entries();
+  assert.deepEqual(rows[1].coveredBy,{kind:'chapter',number:30});
+  assert.equal(rows[1].grouping.manual,true);
+  assert.equal(rows[1].status,'covered');
+  assert.equal(rows[2].coveredBy,null);
+  assert.equal(rows[2].status,'available');
+  assert.equal(rows[2].grouping.role,'extra');
+  assert.deepEqual([...await policy.coveredParts(S,[30,30.1,30.2])],[30.1]);
+  assert.equal((await request('GET',`/api/admin/series/${S}/chapter-grouping`,undefined,reader)).statusCode,403);
+  assert.equal((await request('GET',`/api/admin/series/no-such-series/chapter-grouping`)).statusCode,404);
+});
+
+test('chapter manager shows cached page counts, unknown counts, and remote chapters covered by a held volume', {skip}, async()=>{
+  await writeListing([40,41,42]);
+  await q(`INSERT INTO book_overrides(book_id,number,number_end,volume_number) VALUES ($1,40,42,7)`,[bid(20)]);
+  await q(`UPDATE series_listing SET copies=(SELECT jsonb_agg(c-'pages') FROM jsonb_array_elements(copies)c) WHERE series_id=$1`,[S]);
+  await q(`INSERT INTO chapter_page_counts(source,chapter_id,pages) VALUES ($1,'ch-41',24) ON CONFLICT(source,chapter_id) DO UPDATE SET pages=24`,[SRC]);
+  const rows=(await ok('GET',`/api/admin/series/${S}/chapter-grouping`)).content;
+  assert.equal(rows[0].pagesCount,null);
+  assert.equal(rows[1].pagesCount,24);
+  assert.equal(rows[2].pagesCount,null);
+  for(const row of rows)assert.deepEqual(row.coveredBy,{kind:'volume',number:7,end:null});
+});

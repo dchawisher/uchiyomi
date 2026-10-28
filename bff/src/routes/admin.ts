@@ -5,6 +5,7 @@ import { q, one, tx } from '../lib/db';
 import { volumeLookupRoutes } from './volumeLookup';
 import { applyPartListing } from '../lib/chapterParts';
 import { checkGroupingPages } from '../lib/chapterGroupingPages';
+import { managedSourceChapters } from '../lib/chapterManagement';
 import { postingOrderSeries, POSTING_ORDER_REFUSAL } from '../lib/numbering';
 import numberingRoutes from './numbering';
 import { lastNumber } from '../lib/chapterRanges';
@@ -1576,6 +1577,12 @@ export default async function adminRoutes(app: FastifyInstance) {
     if (!changed) return reply.code(404).send({ error: 'not_found' });
     await logAudit('series.settings', { userId: userIdOf(req), detail: { seriesId: id, partException: b.data }, req });
     return { ok: true };
+  });
+
+  app.get('/api/admin/series/:id/chapter-grouping', async (req, reply) => {
+    const {id}=req.params as {id:string};
+    if (!(await getSeriesRow(id))) return reply.code(404).send({error:'not_found'});
+    return {content:await managedSourceChapters(id)};
   });
 
   app.post('/api/admin/series/:id/chapter-page-counts', async (req, reply) => {
