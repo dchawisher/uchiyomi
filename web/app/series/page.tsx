@@ -2122,7 +2122,7 @@ function SeriesInner() {
       </div>
 
       {/* content */}
-      <div className="px-4 lg:grid lg:grid-cols-[260px_1fr] lg:gap-8 lg:px-0">
+      <div className="px-4 lg:grid lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-8 lg:px-0">
         {/* cover + actions */}
         <div className="relative z-10 lg:-mt-48 lg:sticky lg:top-[calc(var(--topbar-h)+1rem)] lg:self-start">
           {/* The poster, a desktop's: a phone's hero is the cover itself (UI refresh, phone). */}
@@ -2149,7 +2149,7 @@ function SeriesInner() {
         </div>
 
         {/* info + chapters */}
-        <div className="mt-7 flex flex-col gap-4 lg:mt-4">
+        <div className="mt-7 flex min-w-0 flex-col gap-4 lg:mt-4">
           {/* The ratings, desktop form: the top of this column, where the sticky one beside it has no room left -- and
               no wider than its two tiles need. */}
           {series && <div className="hidden lg:block"><RatingsPanel anilist={series.yomi?.anilist} rating={rating} onRate={rate} className="max-w-[440px]" /></div>}
