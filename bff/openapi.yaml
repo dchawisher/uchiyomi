@@ -10137,6 +10137,60 @@ paths:
           description: "Forbidden: token scope, account permission or age limit"
         "404":
           description: Not found, or not visible to this account
+  /api/admin/series/{id}/volume-lookup:
+    get:
+      tags: [admin]
+      summary: Look up MangaDex volume chapter ranges without changing the library.
+      operationId: getApiAdminSeriesIdVolumeLookup
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: mangaId, in: query, schema: { type: string, format: uuid } }
+        - { name: query, in: query, schema: { type: string, maxLength: 300 } }
+      security:
+        - bearer: []
+      responses:
+        "200": { description: Available files and volume suggestions, or manga candidates for review. }
+        "400": { description: Invalid query }
+        "401": { description: Not authenticated }
+        "403": { description: Requires an admin account and admin token scope }
+        "404": { description: Series not found }
+        "429": { description: MangaDex rate limit }
+        "502": { description: MangaDex lookup failed }
+  /api/admin/series/{id}/volume-ranges:
+    post:
+      tags: [admin]
+      summary: Atomically apply reviewed per-volume ranges to unmapped files.
+      operationId: postApiAdminSeriesIdVolumeRanges
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      security:
+        - bearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mappings]
+              properties:
+                mappings:
+                  type: array
+                  minItems: 1
+                  maxItems: 500
+                  items:
+                    type: object
+                    required: [bookId, volume, first, last]
+                    properties:
+                      bookId: { type: string }
+                      volume: { type: number, exclusiveMinimum: 0, maximum: 100000 }
+                      first: { type: number, minimum: 0, maximum: 100000 }
+                      last: { type: number, minimum: 0, maximum: 100000 }
+      responses:
+        "200": { description: Saved count. Existing titles and reading marks are preserved. }
+        "400": { description: Invalid or duplicate mapping. Ranges must be ordered and span at most 1000 chapters. }
+        "401": { description: Not authenticated }
+        "403": { description: Requires an admin account and admin token scope }
+        "409": { description: Files changed or already have saved volume mappings. Nothing was written. }
   /api/admin/books/{id}/meta:
     put:
       tags:

@@ -17,6 +17,7 @@ import { Img, Backdrop, SectionTitle, useWideViewport } from '@/components/ui';
 import { SeriesCard } from '@/components/cards';
 import { useToast } from '@/components/Toast';
 import { ConfirmDialog, Modal, msgOf } from '@/components/ConfirmDialog';
+import VolumeRangeLookup from '@/components/VolumeRangeLookup';
 import { useAuth, canDownload } from '@/lib/auth';
 import { IcChevronLeft, IcDownload, IcCloudDownload, IcCheck, IcTrash, IcHourglass, IcGrid, IcRows, IcComment } from '@/components/icons';
 import { commentsLine, seriesTalkKey, talkWantedOf, type ChapterTalkCount } from '@/lib/comments';
@@ -219,7 +220,7 @@ function RenameFolderModal({ id, folder, title, onClose, onSaved }: {
   );
 }
 
-function ChapterEditModal({ book, onClose, onSaved }: { book: Book; onClose: () => void; onSaved: () => void }) {
+function ChapterEditModal({ book, onClose, onSaved, onLookup }: { book: Book; onClose: () => void; onSaved: () => void; onLookup: (volume?: number) => void }) {
   const toast = useToast();
   const [number, setNumber] = useState(String(book.number ?? ''));
   const [isVolume, setIsVolume] = useState(book.volumeNumber != null);
@@ -265,6 +266,7 @@ function ChapterEditModal({ book, onClose, onSaved }: { book: Book; onClose: () 
         <option value="volume">{tr('Volume')}</option>
       </select>
       {isVolume && <>
+        <button className="btn-key mt-3" onClick={() => onLookup(Number(volume) > 0 ? Number(volume) : undefined)}>{tr('Look up chapter ranges')}</button>
         <label htmlFor="book-volume" className="mb-1 mt-3 block text-xs font-semibold uppercase tracking-wider text-fog-500">{tr('Volume number')}</label>
         <input id="book-volume" value={volume} onChange={(e) => setVolume(e.target.value)} inputMode="decimal" className={fld} />
         <p className="mt-2 text-xs leading-relaxed text-fog-400">{tr('Enter the chapters this volume contains. They will not be downloaded again. Finishing the volume advances chapter progress to its last chapter.')}</p>
@@ -782,6 +784,8 @@ function SeriesInner() {
   const toast = useToast();
   const { isAdmin, user, status: authStatus } = useAuth();
   const [editChapter, setEditChapter] = useState<Book | null>(null);
+  const [volumeLookup, setVolumeLookup] = useState<{ bookId?: string; volume?: number } | null>(null);
+  useEffect(() => { setVolumeLookup(null); }, [id]);
   // Edit details, open on a tab: Details from its key, Reading from the Sources sheet's language Change.
   const [editing, setEditing] = useState<EditTab | null>(null);
   const [collecting, setCollecting] = useState(false);
@@ -1858,6 +1862,7 @@ function SeriesInner() {
         {/* Keys, not chips (UI refresh, noPills.test.ts): these act on the list rather than filter it -- even Filter
             opens a sheet -- and they sat in a row of capsules right under the squared four keys. */}
         <div data-chapter-toolbar className="flex flex-wrap items-center gap-1.5">
+          {isAdmin && <button className="btn-key" onClick={() => setVolumeLookup({})}>{tr('Look up chapter ranges')}</button>}
           <button onClick={markAllRead} className="btn-key">{tr('Mark all read')}</button>
           <button onClick={() => setAsc((a) => !a)} className="btn-key">{asc ? tr('Oldest') : tr('Newest')}</button>
           {/* The group filter and the ghost switch live in a sheet; the count of active choices is a tiny
@@ -2256,9 +2261,12 @@ function SeriesInner() {
       )}
       {editChapter && (
         <ChapterEditModal book={editChapter} onClose={() => setEditChapter(null)}
+          onLookup={volume => { setVolumeLookup({ bookId: editChapter.id, volume }); setEditChapter(null); }}
           onSaved={() => { for (const k of [['series-books', id], ['series', id], ['home']]) qc.invalidateQueries({ queryKey: k }); }} />
       )}
       {collecting && <CollectionSheet seriesId={id} onClose={() => setCollecting(false)} />}
+      {volumeLookup && <VolumeRangeLookup seriesId={id} title={title} target={volumeLookup} onClose={() => setVolumeLookup(null)}
+        onSaved={() => { for (const k of [['series-books', id], ['series', id], ['series-listing', id], ['library'], ['home']]) qc.invalidateQueries({ queryKey: k }); }} />}
       {addingLang && series && (
         <AddSeriesDialog seed={{ kind: 'edition', of: id, title, ...addingLang }} sources={[]} mayFollow={isAdmin}
           onClose={() => setAddingLang(null)}

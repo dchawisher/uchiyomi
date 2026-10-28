@@ -2,6 +2,7 @@ import { hash } from '@node-rs/argon2';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { q, one, tx } from '../lib/db';
+import { volumeLookupRoutes } from './volumeLookup';
 import { applyPartListing } from '../lib/chapterParts';
 import { postingOrderSeries, POSTING_ORDER_REFUSAL } from '../lib/numbering';
 import numberingRoutes from './numbering';
@@ -562,6 +563,7 @@ const COVER_LOOKUP_MS = 15_000;
 export default async function adminRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authenticate);
   app.addHook('preHandler', requireAdmin);
+  volumeLookupRoutes(app);
   // #116's extension settings and numbering routes: a child of this plugin, so the two hooks above gate them.
   await app.register(numberingRoutes);
   // v0.49.1: a series' other names and Find other sources, the same way (routes/findSources.ts).
