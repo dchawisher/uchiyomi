@@ -293,8 +293,7 @@ export function ArchiveQueueNote({ view, admin }: { view: ArchiveView; admin: bo
   const wait = waitingText(globalWaitOf(view), view);
   return (
     <div data-archive-note className="mx-4 mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-[12px] text-fog-400 lg:mx-0">
-      <IcHourglass width={14} height={14} aria-hidden className="text-amber-400" />
-      <span>{view.perHour === 1 ? tr('Slow archive: 1 chapter an hour per source') : tr('Slow archive: {n} chapters an hour per source', { n: view.perHour })}</span>
+      <IcHourglass width={14} height={14} role="img" aria-label={tr('Slow archive')} className="text-amber-400" />
       {wait && <span className="text-amber-300">{wait}</span>}
       {admin && (
         <span className="flex items-center gap-3">

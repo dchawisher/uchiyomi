@@ -247,7 +247,7 @@ function AdultFilterSection({ data, save }: { data: any; save: Save }) {
           {tr('A whole source is rated on its own sheet: Sources ▸ the source ▸ Age rating. Adult only also keeps it from accounts limited below 18.')}
         </p>
         <p className="py-3 text-[11px] leading-relaxed text-fog-500">
-          {tr('One series can be let through on its own page — Edit details ▸ “Always show”.')}
+          {tr('To exclude a series from this filter, set its age rating to All ages in Edit details.')}
         </p>
       </EditorSheet>
     </>
@@ -302,15 +302,15 @@ function SourceOrderSection({ data, save }: { data: any; save: Save }) {
 
   return (
     <>
-      <SummaryRow id="source-order" ref={editor.row} label={tr('Source order')} onClick={editor.show}
+      <SummaryRow id="source-order" ref={editor.row} label={tr('Source ranking')} onClick={editor.show}
         value={rows.length ? rows.map((r) => r.name || '…').join(', ') : tr('None')} />
-      <EditorSheet title={tr('Source order')} open={editor.open} onClose={editor.close}>
+      <EditorSheet title={tr('Source ranking')} open={editor.open} onClose={editor.close}>
         <div className="py-3 first:pt-1">
           <p className="max-w-prose text-[12px] leading-relaxed text-fog-400">
-            {tr('When a series follows more than one source, a new chapter is taken from the highest one here that has it, after your scanlation group preferences. Chapters you already have are never replaced because of it. A series can have its own order in its Sources & translations.')}
+            {tr('If you prefer some sources over others, indicate that by sorting them here.')}
           </p>
           {rows.length === 0 && (
-            <p className="mt-3 text-[11px] text-fog-500">{tr('No order set: each series prefers the source it was added from.')}</p>
+            <p className="mt-3 text-[11px] text-fog-500">{tr('No order set.')}</p>
           )}
           {rows.length > 0 && (
             <ol className="mt-3 space-y-1">
@@ -335,7 +335,6 @@ function SourceOrderSection({ data, save }: { data: any; save: Save }) {
         </div>
         {rest.length > 0 && (
           <div className="py-3">
-            <p className="mb-1.5 text-[11px] text-fog-500">{tr('Add a source to the order')}</p>
             <div className="flex flex-wrap gap-1.5">
               {rest.map((x) => (
                 <button key={x.id} type="button" onClick={() => commit([...order, x.id])} className="btn-key">{x.name}</button>
@@ -551,7 +550,6 @@ function SchedulesSection({ data, save }: { data: any; save: Save }) {
     <>
       <RowGroup title={tr('Getting chapters')}>
         <SelectRow id="update-interval" label={tr('Library update interval')} value={String(interval)}
-          help={tr('How often every followed series is asked for new chapters.')}
           options={intervalChoices(interval).map((h) => ({ value: String(h), label: hoursText(h) }))}
           onChange={(v) => save({ updaterHours: Number(v) })} />
         {/* v0.81.0: ONE switch for everything automatic about downloads (the owner, 2026-10-18: too many options to follow).
@@ -559,8 +557,7 @@ function SchedulesSection({ data, save }: { data: any; save: Save }) {
             the sweep's hunt and the scout (lib/sourceHunt.ts, lib/sourceScout.ts), "Use other sources on their own" until
             v0.81.0 -- are written together, and the switch reads on only while both are. ON by default (both columns
             default true), which `!== false` reads as: a server that does not send a key yet does it. */}
-        <SwitchRow id="finish-downloads" label={tr('Finish downloads on their own')}
-          help={tr('On by default. Uchiyomi keeps downloading until every chapter is here: when a site is slow, blocked or missing chapters, it uses the series’ other sources, and finds a new one when none of them can help, trying a few extensions from your repository if it has to. Off, chapters come only with the library update, from the sources you picked.')}
+        <SwitchRow id="finish-downloads" label={tr('Assertively complete downloads')}
           on={data.finish_downloads !== false && data.auto_follow_on_failure !== false}
           onChange={(next) => save({ finishDownloads: next, autoFollowOnFailure: next })} />
         <SourceOrderSection data={data} save={save} />
@@ -732,7 +729,7 @@ function HousekeepingSection({ data, save: patch }: { data: any; save: Save }) {
   return (
     <>
       <Row id="delete-read" label={tr('Delete read chapters')} status={status}
-        help={tr('Free space by deleting a chapter’s file once everyone who started it has finished it. A chapter someone is partway through is never deleted, and neither is one nobody has read.')}>
+        help={tr('Deletes downloaded files once (1) at least one reader has finished reading them, (2) nobody is in the process of reading them, and (3) a specified number of days have passed. Does not affect files added from disk.')}>
         {/* Not a SwitchRow: that one flips at once, and this switch must stay off until the question is
             answered. `on` is the stored value, so cancelling the dialog leaves it exactly where it was. */}
         <Switch on={on} label={tr('Delete read chapters')}
@@ -748,14 +745,7 @@ function HousekeepingSection({ data, save: patch }: { data: any; save: Save }) {
         {/* fog-400 for the line that says what the number means, fog-500 for the one that says what is
             spared: fog-600 measures 2.6:1 on the card, under AA for text, and these two are read, not
             glanced at. fog-600 is for decorative counts only. */}
-        <p className="mt-1 max-w-prose text-[11px] leading-relaxed text-fog-400">
-          {cur === 0
-            ? tr('0 — the chapter goes at the next hourly run after the last reader finishes it.')
-            : tr('Counted from the moment the last reader finished. Re-opening the chapter starts the wait again.')}
-        </p>
-        <p className="mt-1 max-w-prose text-[11px] leading-relaxed text-fog-500">
-          {tr('Only chapters Uchiyomi downloaded itself are removed — nothing in a library you built by hand is touched. The chapter stays listed and everyone keeps their reading history; the pages are what goes. It is not downloaded again by itself; Fetch again on the series page brings it back.')}
-        </p>
+        <p className="mt-1 max-w-prose text-[11px] leading-relaxed text-fog-400">{tr('Days after last reader finishes.')}</p>
       </RowBlock>
       {/* Out to <body>: a `.card` blurs its backdrop, and that traps a fixed dialog inside the card (components/ui.tsx OnBody). */}
       {confirm && (
@@ -801,7 +791,7 @@ const NO_PREFS: StoredPrefs = { priority: [], blocked: [], patienceDays: 2 };
  * no-op rather than a second tag the server would fold into the first on save.
  */
 function GroupChips({ label, hint, value, ordered, onChange, suggestions }: {
-  label: string; hint: string; value: string[]; ordered?: boolean; onChange: (next: string[]) => void;
+  label: string; hint?: string; value: string[]; ordered?: boolean; onChange: (next: string[]) => void;
   /** Every group the server has seen, for the keys under the box. Absent or empty renders no keys. */
   suggestions?: KnownGroup[];
 }) {
@@ -881,7 +871,7 @@ function GroupChips({ label, hint, value, ordered, onChange, suggestions }: {
           </div>
         );
       })()}
-      <p className="mt-1 max-w-prose text-[11px] text-fog-500">{hint}</p>
+      {hint && <p className="mt-1 max-w-prose text-[11px] text-fog-500">{hint}</p>}
     </div>
   );
 }
@@ -934,11 +924,10 @@ function ScanlatorsSection({ data, save }: { data: any; save: Save }) {
           </div>
         )}>
         <p className="max-w-prose py-3 text-[12px] leading-relaxed text-fog-400 first:pt-1">
-          {tr('When a source lists the same chapter from more than one group, the updater takes the first group ranked here and never a blocked one. Each series can rank its own on its page; blocks made here apply to every series.')}
+          {tr('If you prefer some scanlation groups over others, indicate that here.')}
         </p>
         <div id="blocked-groups">
-          <GroupChips label={tr('Blocked groups')} value={cur.blocked} suggestions={suggestions} onChange={(blocked) => set({ blocked, priority: blocked.reduce((p, g) => withoutGroup(p, g), cur.priority) })}
-            hint={tr('Never take a release from these groups, in any series. A chapter only they have released is skipped until someone else releases it.')} />
+          <GroupChips label={tr('Blocked groups')} value={cur.blocked} suggestions={suggestions} onChange={(blocked) => set({ blocked, priority: blocked.reduce((p, g) => withoutGroup(p, g), cur.priority) })} />
         </div>
         <div id="group-priority">
           <GroupChips label={tr('Default priority')} ordered value={cur.priority} suggestions={suggestions} onChange={(priority) => set({ priority, blocked: priority.reduce((b, g) => withoutGroup(b, g), cur.blocked) })}

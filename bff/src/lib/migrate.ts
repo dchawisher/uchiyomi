@@ -2128,6 +2128,16 @@ async function seedBackupExtensions(c: PoolClient): Promise<void> {
  */
 const DATA_MIGRATIONS: { id: string; run: (c: PoolClient) => Promise<void> }[] = [
   {
+    id: 'hawisher-004-all-ages-rating',
+    run: async (c) => {
+      // Preserve any existing minimum age. Unrated shelf exceptions become an explicit All ages rating.
+      await c.query(`UPDATE series_overrides o SET age_rating = COALESCE(o.age_rating,
+        (SELECT s.age_rating FROM lib_series s WHERE s.id = o.series_id), 0)
+        WHERE o.adult_exempt IS TRUE`);
+      await c.query('UPDATE series_overrides SET adult_exempt = NULL WHERE adult_exempt IS NOT NULL');
+    },
+  },
+  {
     id: 'hawisher-003-omnibus-volume-span',
     run: async (c) => {
       await c.query(`ALTER TABLE book_overrides ADD CONSTRAINT book_volume_span_check CHECK (

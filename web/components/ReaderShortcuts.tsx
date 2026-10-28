@@ -64,9 +64,6 @@ export function ReaderShortcuts({ keyMap, onClose }: { keyMap: KeyMap; onClose: 
           <Line caps={[capLabel('Escape')]} label={actionLabel('exit')} />
           <Line caps={['?']} label={tr('Show this list')} />
         </ul>
-        <p className="mt-3 text-[11px] leading-snug text-fog-500">
-          {tr('With the mouse: double-click zooms in and out. Change the keys in Reader settings.')}
-        </p>
       </div>
     </motion.div>
   );

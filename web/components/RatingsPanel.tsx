@@ -137,15 +137,12 @@ function Meter({ value }: { value: number | null }) {
 /** The reader's own: "Your rating", the five stars, and what a tap does next. */
 function RatingTile({ value, onRate, alone }: { value: number | null; onRate: (tapped: number) => void; alone: boolean }) {
   const id = useId();
-  const caption = value ? tr('Tap again to clear') : tr('Rate this');
   return (
-    <div data-your-rating={value ?? 0} className={`${TILE} ${alone ? 'flex-row items-center justify-between gap-3' : 'flex-col justify-between gap-1'}`}>
+    <div data-your-rating={value ?? 0} className={`${TILE} @container/rating ${alone ? 'flex-row items-center justify-between gap-3' : 'flex-col justify-between gap-1'}`}>
       <span className="min-w-0">
         <span id={id} className="block text-[11px] font-medium tracking-wide text-fog-400">{tr('Your rating')}</span>
-        {alone && <span className="mt-1 block text-[11px] text-fog-500">{caption}</span>}
       </span>
-      <StarRow value={value} onRate={onRate} size={alone ? 24 : 22} labelledBy={id} />
-      {!alone && <span className="block text-[11px] text-fog-500">{caption}</span>}
+      <StarRow value={value} onRate={onRate} labelledBy={id} />
     </div>
   );
 }
@@ -162,7 +159,7 @@ const keyboardFocus = (el: HTMLElement): boolean => {
  * the keyboard -- lights the stars up to that one, a little dimmer than the rating itself, so you see what a tap will
  * do before you make it. The arrow keys move between them in the reading direction, Home and End to the ends.
  */
-function StarRow({ value, onRate, size, labelledBy }: { value: number | null; onRate: (tapped: number) => void; size: number; labelledBy: string }) {
+function StarRow({ value, onRate, labelledBy }: { value: number | null; onRate: (tapped: number) => void; labelledBy: string }) {
   const [preview, setPreview] = useState<number | null>(null);
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
   const lit = preview ?? value ?? 0;
@@ -175,7 +172,7 @@ function StarRow({ value, onRate, size, labelledBy }: { value: number | null; on
     refs.current[to * 2 - 1]?.focus();
   };
   return (
-    <span role="group" aria-labelledby={labelledBy} dir="ltr" className="-mx-1 flex shrink-0 items-center" onPointerLeave={() => setPreview(null)}>
+    <span role="group" aria-labelledby={labelledBy} dir="ltr" className="flex shrink-0 items-center [--star-half:clamp(12px,10cqw,16px)]" onPointerLeave={() => setPreview(null)}>
       {STARS.map((n) => {
         const on = n <= lit;
         const tone = !on ? 'text-fog-600 hover:text-fog-400' : preview !== null && preview !== value ? 'text-accent/70' : 'text-accent';
@@ -187,10 +184,10 @@ function StarRow({ value, onRate, size, labelledBy }: { value: number | null; on
             onFocus={(e) => { if (keyboardFocus(e.currentTarget)) setPreview(n); }}
             onBlur={() => setPreview(null)}
             onKeyDown={(e) => move(e, n)}
-            className={`relative h-9 w-3.5 overflow-hidden outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/60 ${tone}`}>
-            <IcStar width={size} height={size} fill={on ? 'currentColor' : 'none'} aria-hidden
+            className={`relative h-9 w-[var(--star-half)] overflow-hidden outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/60 ${tone}`}>
+            <IcStar fill={on ? 'currentColor' : 'none'} aria-hidden
               className="pointer-events-none absolute top-1/2 -translate-y-1/2"
-              style={{ left: (28 - size) / 2 - (Number.isInteger(n) ? 14 : 0) }} />
+              style={{ width: 'calc(var(--star-half) * 2)', height: 'calc(var(--star-half) * 2)', left: Number.isInteger(n) ? 'calc(var(--star-half) * -1)' : 0 }} />
           </button>
         );
       })}

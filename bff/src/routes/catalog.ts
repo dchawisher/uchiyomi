@@ -470,9 +470,9 @@ export default async function catalogRoutes(app: FastifyInstance) {
     // apply admin metadata overrides (title/summary shown here; cover/banner are handled by the image server)
     const ov = await one<{ title: string | null; summary: string | null; cover: string | null; banner: string | null;
                           author: string | null; status: string | null; genres: string[] | null;
-                          age_rating: number | null; adult_exempt: boolean | null; reading_direction: string | null;
+                          age_rating: number | null; reading_direction: string | null;
                           series_type: string | null; v: string }>(
-      `SELECT title, summary, cover, banner, author, status, genres, age_rating, adult_exempt, reading_direction, series_type,
+      `SELECT title, summary, cover, banner, author, status, genres, age_rating, reading_direction, series_type,
               EXTRACT(EPOCH FROM updated_at) * 1000 AS v FROM series_overrides WHERE series_id = $1`,
       [id],
     );
@@ -489,7 +489,7 @@ export default async function catalogRoutes(app: FastifyInstance) {
       // write back a blank and clear the very override the user opened the modal to keep
       out.overrides = { title: ov.title, summary: ov.summary, cover: ov.cover, banner: ov.banner,
                         author: ov.author, status: ov.status, genres: ov.genres, ageRating: ov.age_rating,
-                        adultExempt: ov.adult_exempt === true, readingDirection: ov.reading_direction,
+                        readingDirection: ov.reading_direction,
                         seriesType: ov.series_type };
       // The edit modal seeds from the override where one exists, so the effective rating has to reflect it
       // or reopening the modal would show the scanned value and saving would undo the correction.

@@ -23,7 +23,7 @@ export function Modal({
   title: string;
   onClose: () => void;
   children: React.ReactNode;
-  wide?: boolean;
+  wide?: boolean | 'table';
   /**
    * False where typing is not the likely first move -- Add to list, where picking a list is -- so focus starts on the
    * close key and a phone's keyboard does not open over the list the moment the dialog does.
@@ -78,7 +78,7 @@ export function Modal({
         aria-modal="true"
         aria-label={title}
         data-lenis-prevent
-        className={`glass max-h-[calc(100dvh-7.5rem-env(safe-area-inset-bottom))] w-full lg:max-h-[88vh] ${wide ? 'max-w-lg' : 'max-w-md'} overflow-y-auto rounded-2xl border border-ink-700 p-5`}
+        className={`glass max-h-[calc(100dvh-7.5rem-env(safe-area-inset-bottom))] w-full lg:max-h-[88vh] ${wide === 'table' ? 'max-w-5xl' : wide ? 'max-w-lg' : 'max-w-md'} overflow-y-auto rounded-2xl border border-ink-700 p-5`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-start justify-between gap-3">

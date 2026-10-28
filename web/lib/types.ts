@@ -248,8 +248,6 @@ export interface Series {
   overrides?: {
     title: string | null; summary: string | null; cover: string | null; banner: string | null;
     author: string | null; status: string | null; genres: string[] | null; ageRating: number | null;
-    /** "Always show": exempt from the 18+ filter (a shelf switch, not an age limit). Absent on older servers. */
-    adultExempt?: boolean;
     /** The admin's reading direction for this series; null follows `detectedDirection`. Absent before v0.48.0. */
     readingDirection?: SeriesMetadata['readingDirection'] | null;
     /** The admin's series type (notice chapters); null follows `detectedType`. Absent on older servers. */

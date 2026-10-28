@@ -326,7 +326,7 @@ export function ConsoleLayout({ index, conds, views, label, hero, art, footer, h
                       {/* Marked only beside the page: on a phone the list is a screen of its own, and nothing on it is open. */}
                       <span className={`truncate font-display text-base font-bold text-fog-50 @min-[52.5rem]/console:text-sm ${on ? '@min-[52.5rem]/console:text-accent' : ''}`}>{tr(c.label)}</span>
                     </span>
-                    {v.summary && <span className="mt-1 line-clamp-2 text-[11px] leading-snug text-fog-400">{v.summary}</span>}
+                    {!c.settings && v.summary && <span className="mt-1 line-clamp-2 text-[11px] leading-snug text-fog-400">{v.summary}</span>}
                   </motion.button>
                 );
               })}
@@ -349,8 +349,7 @@ export function ConsoleLayout({ index, conds, views, label, hero, art, footer, h
                         <span aria-hidden className={`grid h-9 w-9 shrink-0 place-items-center rounded-[10px] ring-1 ring-inset ring-white/5 transition-transform group-hover:scale-105 @min-[52.5rem]/console:h-8 @min-[52.5rem]/console:w-8 ${v.tint}`}>{v.icon}</span>
                         <span className="min-w-0 flex-1">
                           <span className={`block truncate text-sm font-medium ${on ? 'text-fog-50 @min-[52.5rem]/console:text-accent' : 'text-fog-100'}`}>{tr(c.label)}</span>
-                          {/* One line beside the page, where the list is a rail; two on a phone, where it is the screen. */}
-                          {v.summary && <span className="line-clamp-2 block text-[11px] leading-snug text-fog-500 @min-[52.5rem]/console:line-clamp-1">{v.summary}</span>}
+                          {!c.settings && v.summary && <span className="line-clamp-2 block text-[11px] leading-snug text-fog-500 @min-[52.5rem]/console:line-clamp-1">{v.summary}</span>}
                         </span>
                         <IcChevronRight width={16} height={16} aria-hidden className="shrink-0 text-fog-500 transition group-hover:translate-x-0.5 group-hover:text-fog-200 rtl:-scale-x-100 rtl:group-hover:-translate-x-0.5 @min-[52.5rem]/console:hidden" />
                       </button>
@@ -386,9 +385,7 @@ export function ConsoleLayout({ index, conds, views, label, hero, art, footer, h
                 <h2 ref={heading} id={`console-${shownPage.id}-title`} tabIndex={-1} className="font-display text-2xl font-bold leading-tight text-fog-50 outline-hidden [text-shadow:0_2px_12px_rgba(0,0,0,0.5)] @min-[72rem]/console:text-3xl">
                   {tr(shownPage.label)}
                 </h2>
-                {(view.description ?? (view.ownHeader ? view.summary : undefined)) && (
-                  <p className="mt-1 max-w-prose text-sm text-fog-400">{view.description ?? view.summary}</p>
-                )}
+                {!settingsPage && (view.description ?? (view.ownHeader ? view.summary : undefined)) && <p className="mt-1 max-w-prose text-sm text-fog-400">{view.description ?? view.summary}</p>}
               </div>
             </div>
           </header>

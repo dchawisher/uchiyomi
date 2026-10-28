@@ -102,7 +102,7 @@ function autoDirectionChoice(d: Series['detectedDirection']): string {
 const STATUSES = ['ONGOING', 'COMPLETED', 'HIATUS', 'CANCELLED'] as const;
 const STATUS_LABELS = keys('Ongoing', 'Completed', 'Hiatus', 'Cancelled');
 const OTHER_STATUS = '__other';
-const AGES = [6, 10, 13, 15, 17, 18];
+const AGES = [0, 10, 13, 15, 17, 18];
 /** The ages offered, with a rating a file gave that is none of them (a ComicInfo 12+) in its place, so it shows. */
 const ages = (current: string): number[] => {
   const n = Number(current);
@@ -231,9 +231,6 @@ export function SeriesEditor({ id, series, tab: opening = 'details', onClose, on
           <div className="flex items-start gap-3 px-4 pt-4 md:px-6 md:pt-5">
             <div className="min-w-0 flex-1">
               <h2 id={`${uid}-title`} className="font-display text-lg font-semibold leading-tight text-fog-50 md:text-xl">{tr('Edit details')}</h2>
-              <p className="mt-0.5 line-clamp-2 break-words text-xs text-fog-500">
-                <bdi dir="auto" className="text-fog-400">{shownTitle}</bdi> · {tr('Changes apply for everyone')}
-              </p>
             </div>
             {/* The latest save's state, for the whole dialog. A long refusal is cut here (the kit's SaveState carries
                 the whole sentence in its title and its live region) rather than pushing the title out at 390 px. */}
@@ -419,8 +416,7 @@ function GenresRow({ genres, onSave }: { genres: string[]; onSave: (g: string[])
   const { run } = useAutosave();
   const fid = useId();
   return (
-    <Row label={tr('Genres')} htmlFor={fid} stacked
-      help={tr('Genres drive the Library’s genre filters and the recommendation rails. Clearing them all means this series genuinely has none.')}>
+    <Row label={tr('Genres')} htmlFor={fid} stacked>
       <GenreTagInput id={fid} genres={genres} onChange={(next) => { void run(() => onSave(next)); }} />
     </Row>
   );
@@ -434,36 +430,22 @@ function ReadingPane({ id, series, meta, save, onSaved }: {
   return (
     <>
       <ChoiceRow narrow label={tr('Reading direction')} value={meta.readingDirection}
-        help={<>
-          {tr('What “Series default” in the reader follows. Automatic takes it from the chapter files, then the source, then AniList.')}
-          <span data-auto-direction className="mt-0.5 block text-fog-400">{autoDirectionLabel(series.detectedDirection)}</span>
-        </>}
         options={[{ value: '', label: autoDirectionChoice(series.detectedDirection) }, ...DIRECTIONS.map(([v, label]) => ({ value: v as string, label: tr(label) }))]}
         onPick={(readingDirection) => save({ readingDirection })} />
       {/* What kind of comic it is: the notice-chapter switches in Admin → Settings go by it (bff lib/noticeChapters.ts). */}
       <ChoiceRow narrow label={tr('Series type')} value={meta.seriesType}
-        help={<>
-          {tr('What the notice-chapter switches in Settings go by. Automatic takes it from the genres, then the source, then AniList.')}
-          <span data-auto-type className="mt-0.5 block text-fog-400">{autoTypeLabel(series.detectedType)}</span>
-        </>}
         options={[{ value: '', label: tr('Automatic') }, ...SERIES_TYPES.filter((v) => v !== 'unknown').map((v) => ({ value: v as string, label: tr(seriesTypeKey(v)) }))]}
         onPick={(seriesType) => save({ seriesType })} />
       <LanguageRow id={id} series={series} onSaved={onSaved} />
-      <SwitchRow label={tr('Full chapters plus split releases')} on={series.fullChapters === true}
-        help={tr('Whole numbers are complete chapters; decimals are their parts. A .5 chapter stays separate unless there is a corresponding .4. Prefer full chapters for downloads; keep downloaded parts under Parts / other versions. Use “Extra — keep separate” for other bonuses.')}
+      <SwitchRow label={tr('Deduplicate split releases')} on={series.fullChapters === true}
+        help={tr('Enable if sources for this series combine full chapters (e.g., 19) with chapter parts (e.g., 19.1).')}
         onChange={async fullChapters => {
           await api(`/api/admin/series/${id}`, { method: 'PATCH', json: { fullChapters } });
           onSaved();
         }} />
       <ChoiceRow narrow label={tr('Age rating')} value={meta.ageRating}
-        help={tr('Members with an age limit below this will not see the series anywhere: not in the library, search, the reader, or an external OPDS app.')}
-        options={[{ value: '', label: tr('Not rated') }, ...ages(meta.ageRating).map((a) => ({ value: String(a), label: `${a}+` }))]}
+        options={[{ value: '', label: tr('Not rated') }, ...ages(meta.ageRating).map((a) => ({ value: String(a), label: a === 0 ? tr('All ages') : `${a}+` }))]}
         onPick={(ageRating) => save({ ageRating })} />
-      {/* "Always show": kept on the shelf while "Show 18+" is off, whatever makes it 18+ (its genres, its rating, its
-          library). Surfacing only: who may open the series is still the age rating above. */}
-      <SwitchRow label={tr('Always show')} on={meta.adultExempt}
-        help={tr('Keep this series on the shelf while “Show 18+” is off, even if it or one of its genres is 18+.')}
-        onChange={(adultExempt) => save({ adultExempt })} />
     </>
   );
 }
@@ -511,8 +493,7 @@ function LanguageRow({ id, series, onSaved }: { id: string; series: Series; onSa
     else setLang(prev);
   };
   return (
-    <Row label={tr('Language')} htmlFor={sid} stacked
-      help={tr('The language this series is in. Sources in another language are never followed for it automatically.')}>
+    <Row label={tr('Language')} htmlFor={sid} stacked>
       <select id={sid} value={lang} onChange={(e) => void pick(e.target.value)} className="field">
         {!edition && (
           <option value="">{series.langAuto ? tr('Automatic ({language})', { language: languageName(series.langAuto) }) : tr('Automatic')}</option>
@@ -557,7 +538,6 @@ function UpdatesPane({ id, series, onSaved, onOpenSources }: { id: string; serie
   return (
     <>
       <SwitchRow label={tr('Auto-update new chapters')} on={autoUpdate}
-        help={tr('The scheduled check fetches new chapters for this series.')}
         onChange={async (next) => {
           await api(`/api/admin/series/${id}`, { method: 'PATCH', json: { autoUpdate: next } });
           setAutoUpdate(next);
@@ -600,7 +580,7 @@ function UpdatesPane({ id, series, onSaved, onOpenSources }: { id: string; serie
           open it, else one line saying where they went, so an admin who learned them here is not left to conclude
           they are gone. */}
       {onOpenSources
-        ? <LinkRow label={tr('Sources & translations')} help={tr('Where its chapters come from, and which translation groups come first.')} onClick={onOpenSources} />
+        ? <LinkRow label={tr('Sources & translations')} onClick={onOpenSources} />
         : <p className="py-3 text-[11px] text-fog-500">{tr('Translation groups are ranked in Sources & translations')}</p>}
     </>
   );
@@ -651,8 +631,7 @@ function LibraryRow({ id, series, onSaved }: { id: string; series: Series; onSav
     else setLib(prev);
   };
   return (
-    <Row label={tr('Library')} htmlFor={sid} stacked
-      help={lib ? tr('Filed here by hand. Rescans and new libraries will leave it alone.') : tr('Whichever library covers this folder, most specific first.')}>
+    <Row label={tr('Library')} htmlFor={sid} stacked>
       <select id={sid} value={lib} onChange={(e) => void pick(e.target.value)} className="field">
         <option value="">{tr('Automatic — follow the folder')}</option>
         {(libs?.content ?? []).map((l) => (
@@ -807,13 +786,6 @@ function ArtPanel({ id, series, onSaved, onNewBanner }: { id: string; series: Se
         {linkFor === 'cover' && <LinkField kind="cover" busy={busy === 'cover'} onSet={(u) => void fromLink('cover', u)} onCancel={() => setLinkFor(null)} />}
         {/* What the cover is when nobody chose one -- what Reset to automatic gives back -- and the one choice that stays
             put whatever is found online. An upload or a link needs no words: it is the picture above. */}
-        {(ov?.cover === FIRST_PAGE_COVER || !ov?.cover) && (
-          <p data-art-cover-note className="mt-2 text-[11px] leading-relaxed text-fog-500">
-            {ov?.cover === FIRST_PAGE_COVER
-              ? tr('The first page, by your choice: nothing found online replaces it.')
-              : tr('Automatic: the source’s cover, or AniList’s when its entry has the same name, else the first page.')}
-          </p>
-        )}
       </div>
 
       <div>
@@ -835,7 +807,6 @@ function ArtPanel({ id, series, onSaved, onNewBanner }: { id: string; series: Se
 
       <div className="space-y-1 text-[11px] leading-relaxed text-fog-500">
         <p>{tr('Images up to {n} MB. You can also drop one onto a preview.', { n: ART_MAX_MB })}</p>
-        <p>{tr('Manual AniList actions can contact AniList even when automatic lookups are off.')}</p>
       </div>
       <FilePicker inputRef={file} onPick={(f) => void upload(fileFor.current, f)} />
       {coverMenu.element}

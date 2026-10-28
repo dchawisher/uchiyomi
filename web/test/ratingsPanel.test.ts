@@ -87,8 +87,8 @@ test('five stars, each a button that says what it does, the current one pressed'
   assert.equal((html.match(/<svg[^>]*fill="currentColor"[^>]*>(?:(?!<\/svg>).)*m12 3 2\.6/g) ?? []).length, 8, 'not eight filled half-stars');
   assert.match(html, /role="group" aria-labelledby="[^"]+"/, 'the stars are not one labelled group');
   assert.match(html, /Your rating/);
-  assert.match(html, /Tap again to clear/, 'a rated series does not say how to take it back');
-  assert.match(panel(null, null), /Rate this/);
+  assert.doesNotMatch(html, /Tap again to clear/);
+  assert.doesNotMatch(panel(null, null), /Rate this/);
   assert.doesNotMatch(panel(null, null), /aria-pressed="true"/);
 });
 
@@ -142,7 +142,7 @@ test('in Arabic the score still reads "84 / 100", the count keeps its word, and 
     assert.match(html, new RegExp(`القرّاء: ⁨${count}⁩`), 'the Arabic count is not isolated after its word');
     assert.match(html, /aria-label="قيّمها بـ3 من 5" aria-pressed="true"/);
     assert.match(html, /تقييمك/);
-    assert.match(html, /اضغط ثانيةً لإلغاء التقييم/);
+    assert.doesNotMatch(html, /اضغط ثانيةً لإلغاء التقييم/);
     // Western digits beside Arabic words, as every number in the app (lib/format.ts intlTag's -u-nu-latn).
     assert.doesNotMatch(html, /[٠-٩]/, 'Arabic-Indic digits beside the Western ones');
   });

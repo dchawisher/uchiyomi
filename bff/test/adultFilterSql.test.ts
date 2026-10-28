@@ -38,7 +38,8 @@ test('the genre rule holds for a context that carries no lists, like the digest 
   // without loading the lists. With the list read in SQL, that is enough.
   const sql = V.browsable('s', ctx([]), new V.Params());
   assert.match(sql, /adult_genres/);
-  assert.match(sql, /adult_exempt/, 'the per-series exemption is part of the clause');
+  assert.match(sql, /o_ex0\.age_rating[^]*?= 0, false/, 'the explicit All ages rating is part of the clause');
+  assert.doesNotMatch(sql, /adult_exempt/);
 });
 
 test('the reveal switches the genre clause off entirely', () => {
@@ -88,17 +89,15 @@ test("a series' own 18+ rating leaves the listing, without binding a parameter",
   assert.doesNotMatch(V.browsable('s', ctx([], { hideAdultLibraries: false }), new V.Params()), /o_ar/, 'the reveal switches it off');
 });
 
-test('"Always show" outranks the library rating and the series rating, not just the genres', () => {
-  // Reintroduce by leaving the exemption off either clause: an exempt series in an 18+ library, or rated 18+
-  // itself, vanishes from the shelf despite its checkbox.
+test('All ages explicitly overrides adult shelving inferred from the library or genres', () => {
   const sql = V.browsable('s', ctx([]), new V.Params());
   const guarded = (needle: RegExp) => sql.split(/\n/).join(' ').match(needle);
-  assert.ok(guarded(/o_ex0\.adult_exempt[^]*?\) OR NOT EXISTS \(\s*SELECT 1 FROM libraries l_ad/), 'library clause is exemptable');
+  assert.ok(guarded(/o_ex0\.age_rating[^]*?= 0, false\) OR NOT EXISTS \(\s*SELECT 1 FROM libraries l_ad/), 'library clause is exemptable');
   assert.ok(guarded(/\) OR COALESCE\(\s*\(SELECT o_ar\.age_rating/), 'series rating clause is exemptable');
   assert.match(V.browsable('s', ctx([], { maxAgeRating: 12 }), new V.Params()), /age_rating IS NULL OR|<= \$/, 'the age cap is still applied');
 });
 
-test('"Always show" never reaches visible(): it is a shelf switch, and the age cap stays the permission', () => {
+test('The retired shelf exception never bypasses access permissions', () => {
   // PR #130 let the flag lift a capped account's age limit in visible(); v0.50.0 left that part out. Reintroduce by
   // OR-ing adult_exempt into the cap clause: the first assertion finds it. adultFilter.int.test.ts runs the same
   // rule against Postgres ("a capped account still cannot open an exempt 18+ series").

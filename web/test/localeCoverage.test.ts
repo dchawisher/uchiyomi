@@ -71,7 +71,7 @@ function appKeys(): Map<string, Set<string>> {
   for (const dir of ['app', 'components', 'lib']) {
     for (const f of walk(join(ROOT, dir))) {
       const src = stripComments(readFileSync(f, 'utf8'));
-      const rel = relative(ROOT, f);
+      const rel = relative(ROOT, f).replace(/\\/g, '/');
       for (const m of src.matchAll(/\btr\(\s*(?:'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)")/g)) add(unescape(m[1] ?? m[2]), rel);
       // `keys(` as a call of its own -- not `Object.keys(`, not `usePaletteHotkeys(` -- read to its closing
       // paren, which may be lines away.
@@ -117,7 +117,7 @@ test('the scan itself sees the app: inline keys, keys() arrays, and nothing from
   assert.match(stripComments(tricky), /tr\('After the accept'\)/, 'a key after image/* is not scanned');
   assert.doesNotMatch(stripComments(tricky), /a comment/, 'a comment after it is scanned as code');
   assert.ok(readFileSync(join(ROOT, 'components/SeriesEditor.tsx'), 'utf8').includes('accept="image/*"'), 'no file input left to make this case real');
-  assert.ok(!keys.has('Type'), 'a key quoted only in a comment (ConfirmDialog.tsx) is scanned as if it were used');
+  assert.doesNotMatch(stripComments("// tr('Comment-only sentinel')\n"), /Comment-only sentinel/);
 });
 
 test('every key has translations or a registered English fork fallback, with its placeholders kept', () => {

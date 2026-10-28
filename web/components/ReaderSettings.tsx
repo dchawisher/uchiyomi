@@ -13,9 +13,6 @@ import { Switch } from './Switch';
 import { LOCALES, t as tr } from '@/lib/i18n';
 import { activeLocale } from '@/lib/format';
 import { useLayer } from '@/lib/layers';
-import { INCOGNITO_TEXT } from '@/lib/incognito';
-import { useIncognito } from './IncognitoBanner';
-import { useToast } from './Toast';
 
 /**
  * A tap layout drawn as the 3 x 3 grid it divides the page into (v0.61.0): shaded where a tap goes back, lit where it
@@ -39,11 +36,11 @@ function TapSketch({ layout, rtlTrack }: { layout: TapLayout; rtlTrack: boolean 
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="py-3">
-      <div className="mb-2 flex items-center justify-between">
+    <div className="py-3 md:grid md:grid-cols-[9rem_minmax(0,1fr)] md:items-center md:gap-4 md:py-2">
+      <div className="mb-2 flex items-center justify-between md:mb-0">
         <span className="text-sm font-medium text-fog-200">{label}</span>
       </div>
-      {children}
+      <div className="min-w-0">{children}</div>
     </div>
   );
 }
@@ -112,9 +109,6 @@ export function ReaderSettings({
   useLayer('dialog', true, { ref: panelRef });
   // The library key's question is open (#235): the key saves for every account, so it asks first.
   const [askLibrary, setAskLibrary] = useState(false);
-  // v0.61.0: Incognito reading, the account's switch (lib/incognito.ts) -- here because the reader is where it is wanted.
-  const incognito = useIncognito();
-  const toast = useToast();
   return (
     <motion.div className="fixed inset-0 z-50" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
@@ -128,12 +122,12 @@ export function ReaderSettings({
         transition={{ type: 'spring', stiffness: 360, damping: 36 }}
         role="dialog" aria-modal="true" aria-label={tr('Reader')}
         data-lenis-prevent
-        className="absolute inset-x-0 bottom-0 max-h-[85dvh] overflow-y-auto overscroll-contain rounded-t-4xl border-t border-ink-700 bg-ink-900/95 px-5 pt-4 backdrop-blur-xl pb-[max(1.5rem,calc(env(safe-area-inset-bottom)+1rem))]"
+        data-reader-settings className="absolute inset-x-0 bottom-0 md:inset-x-auto md:right-6 md:bottom-6 md:w-[min(680px,calc(100vw-3rem))] md:rounded-2xl md:border max-h-[85dvh] overflow-y-auto overscroll-contain rounded-t-4xl border-t border-ink-700 bg-ink-900/95 px-5 pt-4 backdrop-blur-xl pb-[max(1.5rem,calc(env(safe-area-inset-bottom)+1rem))]"
       >
         <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-ink-600" />
         <div className="mb-1 flex items-center justify-between">
           <h3 className="font-display text-lg font-semibold">{tr('Reader')}</h3>
-          <button onClick={onClose} className="text-fog-500"><IcX width={20} height={20} /></button>
+          <button onClick={onClose} aria-label={tr('Close')} className="grid size-9 place-items-center text-fog-500"><IcX width={20} height={20} /></button>
         </div>
 
         <Row label={tr('Mode')}>
@@ -142,7 +136,7 @@ export function ReaderSettings({
               <button
                 key={m}
                 onClick={() => set({ mode: m })}
-                className={`rounded-2xl border py-3 text-sm ${prefs.mode === m ? 'border-accent bg-accent-soft text-accent' : 'border-ink-700 text-fog-300'}`}
+                className={`rounded-2xl border py-3 md:py-1.5 md:rounded-lg text-sm ${prefs.mode === m ? 'border-accent bg-accent-soft text-accent' : 'border-ink-700 text-fog-300'}`}
               >
                 {m === 'vertical' ? tr('Webtoon (scroll)') : tr('Paged (swipe)')}
               </button>
@@ -153,8 +147,8 @@ export function ReaderSettings({
         {/* v0.61.0: Webtoon or Paged picked for each series from its pages and its type, where neither the series nor its
             source has a mode of its own. Every title, synced. Says what it picked for this one, and why. */}
         <div className="flex items-center justify-between gap-3 pb-3">
-          <span className="text-sm font-medium text-fog-200">{tr('Pick the mode for each series')}</span>
-          <Switch on={prefs.autoMode} onChange={(autoMode) => set({ autoMode })} label={tr('Pick the mode for each series')} />
+          <span className="text-sm font-medium text-fog-200">{tr('Automatically choose reading mode')}</span>
+          <Switch on={prefs.autoMode} onChange={(autoMode) => set({ autoMode })} label={tr('Automatically choose reading mode')} />
         </div>
         {autoApplied && (
           <p data-auto-mode={autoApplied.mode} className="-mt-1 pb-3 text-[11px] leading-snug text-fog-500">
@@ -185,7 +179,7 @@ export function ReaderSettings({
           <div className="grid grid-cols-3 gap-2">
             {(['amoled', 'sepia', 'gray'] as const).map((t) => (
               <button key={t} onClick={() => set({ theme: t })}
-                className={`rounded-2xl border py-3 text-sm ${prefs.theme === t ? 'border-accent bg-accent-soft text-accent' : 'border-ink-700 text-fog-300'}`}>
+                className={`rounded-2xl border py-3 md:py-1.5 md:rounded-lg text-sm ${prefs.theme === t ? 'border-accent bg-accent-soft text-accent' : 'border-ink-700 text-fog-300'}`}>
                 {t === 'amoled' ? tr('AMOLED') : t === 'sepia' ? tr('Sepia') : tr('Gray')}
               </button>
             ))}
@@ -194,14 +188,14 @@ export function ReaderSettings({
 
         {/* v0.61.0: a filter over the page images only -- the theme above still tints the reader as it did. This device
             only: an e-ink tablet wants E-ink, the phone beside it does not. */}
-        <Row label={`${tr('Colour filter')} · ${tr('This device')}`}>
+        <Row label={`${tr('Colour filter')} · ${tr('This browser')}`}>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {([['none', tr('None')], ['invert', tr('Invert')], ['grayscale', tr('Grayscale')], ['eink', tr('E-ink')]] as [ColorFilter, string][]).map(([v, label]) => (
               <button key={v} type="button" aria-pressed={device.colorFilter === v} onClick={() => setDevice({ colorFilter: v })}
-                className={`rounded-2xl border px-1 py-3 text-sm ${device.colorFilter === v ? 'border-accent bg-accent-soft text-accent' : 'border-ink-700 text-fog-300'}`}>{label}</button>
+                className={`rounded-2xl border px-1 py-3 md:py-1.5 md:rounded-lg text-sm ${device.colorFilter === v ? 'border-accent bg-accent-soft text-accent' : 'border-ink-700 text-fog-300'}`}>{label}</button>
             ))}
           </div>
-          <p className="mt-2 text-[11px] leading-snug text-fog-500">{tr('Over the pages only. E-ink also turns pages without sliding.')}</p>
+
         </Row>
 
         {/* #170: the cover's colour across the top and bottom of the screen. A switch on one line, the only boolean here:
@@ -209,14 +203,6 @@ export function ReaderSettings({
         <div className="flex items-center justify-between gap-3 py-3">
           <span className="text-sm font-medium text-fog-200">{tr('Cover colour at the edges')}</span>
           <Switch on={prefs.coverEdges} onChange={(coverEdges) => set({ coverEdges })} label={tr('Cover colour at the edges')} />
-        </div>
-        <div className="py-3" data-reader-incognito>
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm font-medium text-fog-200">{tr(INCOGNITO_TEXT[0])}</span>
-            <Switch on={incognito.on} label={tr(INCOGNITO_TEXT[0])}
-              onChange={(on) => { incognito.set(on).catch(() => toast(tr('Could not save'), 'error')); }} />
-          </div>
-          <p className="mt-2 text-[11px] leading-snug text-fog-500">{tr(INCOGNITO_TEXT[1])}</p>
         </div>
 
         <Row label={`${tr('Brightness')} · ${Math.round(prefs.brightness * 100)}%`}>
@@ -229,9 +215,9 @@ export function ReaderSettings({
           <Row label={tr('Pages per view')}>
             <div className="grid grid-cols-2 gap-2">
               <button onClick={() => set({ spread: false })}
-                className={`rounded-2xl border py-3 text-sm ${!prefs.spread ? 'border-accent bg-accent-soft text-accent' : 'border-ink-700 text-fog-300'}`}>{tr('Single')}</button>
+                className={`rounded-2xl border py-3 md:py-1.5 md:rounded-lg text-sm ${!prefs.spread ? 'border-accent bg-accent-soft text-accent' : 'border-ink-700 text-fog-300'}`}>{tr('Single')}</button>
               <button onClick={() => set({ spread: true })}
-                className={`rounded-2xl border py-3 text-sm ${prefs.spread ? 'border-accent bg-accent-soft text-accent' : 'border-ink-700 text-fog-300'}`}>{tr('Double spread')}</button>
+                className={`rounded-2xl border py-3 md:py-1.5 md:rounded-lg text-sm ${prefs.spread ? 'border-accent bg-accent-soft text-accent' : 'border-ink-700 text-fog-300'}`}>{tr('Double spread')}</button>
             </div>
             {prefs.spread && onSpreadShift && (
               <label data-spread-shift className="mt-3 flex items-start gap-3 text-sm text-fog-300">
@@ -250,7 +236,7 @@ export function ReaderSettings({
             <div className="grid grid-cols-3 gap-2">
               {([['series', tr('Series default')], ['ltr', tr('Left to right')], ['rtl', tr('Right to left')]] as const).map(([v, label]) => (
                 <button key={v} onClick={() => set({ pagedDirection: v })}
-                  className={`rounded-2xl border px-1 py-3 text-sm ${prefs.pagedDirection === v ? 'border-accent bg-accent-soft text-accent' : 'border-ink-700 text-fog-300'}`}>{label}</button>
+                  className={`rounded-2xl border px-1 py-3 md:py-1.5 md:rounded-lg text-sm ${prefs.pagedDirection === v ? 'border-accent bg-accent-soft text-accent' : 'border-ink-700 text-fog-300'}`}>{label}</button>
               ))}
             </div>
           </Row>
@@ -258,16 +244,14 @@ export function ReaderSettings({
 
         {/* v0.61.0. Both modes, every title (synced with the account, like the edges above). On a screen held upright
             only: a spread on a phone held sideways, or on a computer, fits as it is. */}
-        <Row label={tr('Wide pages')}>
+        <Row label={tr('Wide pages in portrait')}>
           <div className="grid grid-cols-3 gap-2">
             {([['whole', tr('Whole')], ['split', tr('Split')], ['rotate', tr('Rotate')]] as const).map(([v, label]) => (
               <button key={v} type="button" aria-pressed={prefs.widePages === v} onClick={() => set({ widePages: v })}
-                className={`rounded-2xl border py-3 text-sm ${prefs.widePages === v ? 'border-accent bg-accent-soft text-accent' : 'border-ink-700 text-fog-300'}`}>{label}</button>
+                className={`rounded-2xl border py-3 md:py-1.5 md:rounded-lg text-sm ${prefs.widePages === v ? 'border-accent bg-accent-soft text-accent' : 'border-ink-700 text-fog-300'}`}>{label}</button>
             ))}
           </div>
-          <p className="mt-2 text-[11px] leading-snug text-fog-500">
-            {tr('On a screen held upright, a double-page spread can be split into its two pages, or turned on its side to fill the screen.')}
-          </p>
+
         </Row>
 
         {/* #229. Off by default; every title, synced. Paged mode only: the webtoon column shows pages one under another. */}
@@ -277,14 +261,12 @@ export function ReaderSettings({
               <span className="text-sm font-medium text-fog-200">{tr('Join split double pages')}</span>
               <Switch on={prefs.joinSplit} onChange={(joinSplit) => set({ joinSplit })} label={tr('Join split double pages')} />
             </div>
-            <p className="mt-1 text-[11px] leading-snug text-fog-500">
-              {tr('Shows two pages that a source cut from one double-page spread as that spread, in Paged mode. The server looks for them when a chapter is first opened, so they join a moment later. On a screen held upright, Wide pages applies to them.')}
-            </p>
+
             {/* v0.89.0 (#262): the page being read, by hand. The keys sit as the pages do -- the left one on the left in
                 any language, so the grid is laid out left to right and each label keeps its own direction. */}
-            {spreadChoices.length > 0 && (
+            {prefs.joinSplit && spreadChoices.length > 0 && (
               <div className="mt-3 rounded-2xl border border-ink-700/70 bg-ink-850/60 p-3" data-spread-choices>
-                <p className="text-xs font-medium text-fog-300">{tr('This page')}</p>
+                <p className="text-xs font-medium text-fog-300">{tr('Fix page joins')}</p>
                 {/* A key with no side takes the whole row; a merge takes the column of its side, alone or not. */}
                 <div dir="ltr" className="mt-2 grid grid-cols-2 gap-2">
                   {spreadChoices.map((o) => (
@@ -295,9 +277,7 @@ export function ReaderSettings({
                     </button>
                   ))}
                 </div>
-                <p className="mt-2 text-[11px] leading-snug text-fog-500">
-                  {tr('For when the server joined two pages that are not one picture, or missed two that are. Saved for your account only.')}
-                </p>
+
               </div>
             )}
           </div>
@@ -309,27 +289,23 @@ export function ReaderSettings({
             <span className="text-sm font-medium text-fog-200">{tr('Crop page borders')}</span>
             <Switch on={prefs.cropBorders} onChange={(cropBorders) => set({ cropBorders })} label={tr('Crop page borders')} />
           </div>
-          <p className="mt-1 text-[11px] leading-snug text-fog-500">
-            {tr('Trims the blank margins around scanned pages. In Webtoon mode only the sides are trimmed, by the same amount for a whole chapter.')}
-          </p>
+
         </div>
 
         {/* Set in both modes. ⚠️ It cannot LOOK the same in both: a page-by-page view has no thin slide --
             every slide is exactly one viewport wide -- so under Collapse a repeated page is shown there like
             any other, where it costs one swipe rather than a scroll. (Not removed: that would give the two modes
             different page orders, and switching mode mid-chapter would land on another page. Hide removes.) */}
-        <Row label={tr('Repeated pages')}>
+        <Row label={tr('Repeated pages (credits, adverts, etc.)')}>
           <div className="grid grid-cols-3 gap-2">
             <button onClick={() => set({ junkPages: 'show' })}
-              className={`rounded-2xl border py-3 text-sm ${prefs.junkPages === 'show' ? 'border-accent bg-accent-soft text-accent' : 'border-ink-700 text-fog-300'}`}>{tr('Show all')}</button>
+              className={`rounded-2xl border py-3 md:py-1.5 md:rounded-lg text-sm ${prefs.junkPages === 'show' ? 'border-accent bg-accent-soft text-accent' : 'border-ink-700 text-fog-300'}`}>{tr('Show all')}</button>
             <button onClick={() => set({ junkPages: 'collapse' })}
-              className={`rounded-2xl border py-3 text-sm ${prefs.junkPages === 'collapse' ? 'border-accent bg-accent-soft text-accent' : 'border-ink-700 text-fog-300'}`}>{tr('Collapse')}</button>
+              className={`rounded-2xl border py-3 md:py-1.5 md:rounded-lg text-sm ${prefs.junkPages === 'collapse' ? 'border-accent bg-accent-soft text-accent' : 'border-ink-700 text-fog-300'}`}>{tr('Collapse')}</button>
             <button onClick={() => set({ junkPages: 'hide' })}
-              className={`rounded-2xl border py-3 text-sm ${prefs.junkPages === 'hide' ? 'border-accent bg-accent-soft text-accent' : 'border-ink-700 text-fog-300'}`}>{tr('Hide')}</button>
+              className={`rounded-2xl border py-3 md:py-1.5 md:rounded-lg text-sm ${prefs.junkPages === 'hide' ? 'border-accent bg-accent-soft text-accent' : 'border-ink-700 text-fog-300'}`}>{tr('Hide')}</button>
           </div>
-          <p className="mt-2 text-[11px] leading-snug text-fog-500">
-            {tr('Credit pages and adverts repeat in every chapter. Collapse folds them down to a line you can scroll past or tap to open; hide takes them out of the chapter altogether.')}
-          </p>
+
         </Row>
 
         {prefs.mode === 'vertical' && (
@@ -341,9 +317,9 @@ export function ReaderSettings({
             </Row>
             {/* #233: a share of what Fit gives, on this device: a wide monitor wants a narrow strip, the phone beside it the
                 whole width. 100 % is the column as it always was. */}
-            <Row label={`${tr('Column width')} · ${tr('This device')} · ${device.columnWidth}%`}>
+            <Row label={`${tr('Column width')} · ${tr('This browser')} · ${device.columnWidth}%`}>
               <input type="range" min={COLUMN_WIDTH.min} max={COLUMN_WIDTH.max} step={COLUMN_WIDTH.step} value={device.columnWidth}
-                aria-label={`${tr('Column width')} · ${tr('This device')}`} aria-valuetext={`${device.columnWidth}%`}
+                aria-label={`${tr('Column width')} · ${tr('This browser')}`} aria-valuetext={`${device.columnWidth}%`}
                 onChange={(e) => setDevice({ columnWidth: Number(e.target.value) })}
                 className="w-full accent-[rgb(var(--accent))]" data-reader-width />
               <p className="mt-2 text-[11px] leading-snug text-fog-500">{tr('A share of the width Fit gives: a narrower column of pages for a wide screen.')}</p>
@@ -359,9 +335,9 @@ export function ReaderSettings({
         <Row label={tr('Fit')}>
           <div className="grid grid-cols-2 gap-2">
             <button onClick={() => set({ fitWidth: true })}
-              className={`rounded-2xl border py-3 text-sm ${prefs.fitWidth ? 'border-accent bg-accent-soft text-accent' : 'border-ink-700 text-fog-300'}`}>{tr('Fit width')}</button>
+              className={`rounded-2xl border py-3 md:py-1.5 md:rounded-lg text-sm ${prefs.fitWidth ? 'border-accent bg-accent-soft text-accent' : 'border-ink-700 text-fog-300'}`}>{tr('Fit width')}</button>
             <button onClick={() => set({ fitWidth: false })}
-              className={`rounded-2xl border py-3 text-sm ${!prefs.fitWidth ? 'border-accent bg-accent-soft text-accent' : 'border-ink-700 text-fog-300'}`}>{tr('Original')}</button>
+              className={`rounded-2xl border py-3 md:py-1.5 md:rounded-lg text-sm ${!prefs.fitWidth ? 'border-accent bg-accent-soft text-accent' : 'border-ink-700 text-fog-300'}`}>{tr('Original')}</button>
           </div>
         </Row>
 
@@ -369,16 +345,14 @@ export function ReaderSettings({
             as scanned is the reader as it always was. */}
         <div className="py-3">
           <div className="flex items-center justify-between gap-3">
-            <span className="text-sm font-medium text-fog-200">{`${tr('Fit pages to my screen')} · ${tr('This device')}`}</span>
-            <Switch on={device.fitPages} onChange={(fitPages) => setDevice({ fitPages })} label={tr('Fit pages to my screen')} />
+            <span className="text-sm font-medium text-fog-200">{tr('Data saver')}</span>
+            <Switch on={device.fitPages} onChange={(fitPages) => setDevice({ fitPages })} label={tr('Data saver')} />
           </div>
-          <p className="mt-1 text-[11px] leading-snug text-fog-500">
-            {tr('Each page comes at the size this screen shows it instead of as scanned: less data and memory on a phone or a slow connection. Zooming in fetches a sharper copy.')}
-          </p>
+
         </div>
 
         {/* v0.61.0: where a tap turns the page, on this device. Automatic is the reader as it always was. */}
-        <Row label={`${tr('Tap zones')} · ${tr('This device')}`}>
+        <Row label={`${tr('Tap zones')} · ${tr('This browser')}`}>
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
             {([['auto', tr('Automatic')], ['edges', tr('Edges')], ['lshape', tr('L shape')], ['kindle', tr('Kindle-style')], ['off', tr('Off')]] as [TapLayout, string][]).map(([v, label]) => (
               <button key={v} type="button" aria-pressed={device.tapLayout === v} onClick={() => setDevice({ tapLayout: v })}
@@ -388,9 +362,7 @@ export function ReaderSettings({
               </button>
             ))}
           </div>
-          <p className="mt-2 text-[11px] leading-snug text-fog-500">
-            {tr('Where a tap turns the page: the shaded part goes back, the lit part goes on, the rest shows the controls. Automatic turns pages in Paged mode only.')}
-          </p>
+
         </Row>
 
         {/* #232: a tap on one page of a pair brings it into frame, on this device. Off until chosen: every tap is the tap
@@ -398,18 +370,16 @@ export function ReaderSettings({
         {prefs.mode === 'paged' && (
           <div className="py-3">
             <div className="flex items-center justify-between gap-3">
-              <span className="text-sm font-medium text-fog-200">{`${tr('Tap a page of a pair to see it alone')} · ${tr('This device')}`}</span>
+              <span className="text-sm font-medium text-fog-200">{`${tr('Tap a page of a pair to see it alone')} · ${tr('This browser')}`}</span>
               <Switch on={device.tapFocus} onChange={(tapFocus) => setDevice({ tapFocus })} label={tr('Tap a page of a pair to see it alone')} />
             </div>
-            <p className="mt-1 text-[11px] leading-snug text-fog-500">
-              {tr('On two pages side by side, a tap on one shows it alone, and turning toward the other shows that one. Taps beside the pages still do what Tap zones says.')}
-            </p>
+
           </div>
         )}
 
         {/* v0.61.0: the keys and a game controller, on this device. Folded: most readers never change them. */}
         <div className="py-3">
-          <Disclosure label={`${tr('Keys and controller')} · ${tr('This device')}`}>
+          <Disclosure prominent label={`${tr('Keys and controller')} · ${tr('This browser')}`}>
             <ReaderKeys mode={prefs.mode} keys={device.keys} pad={device.pad} padConnected={padConnected}
               onKeys={(keys) => setDevice({ keys })} onPad={(pad) => setDevice({ pad })} />
           </Disclosure>

@@ -17,7 +17,7 @@ import { Img, Backdrop, SectionTitle, useWideViewport } from '@/components/ui';
 import { SeriesCard } from '@/components/cards';
 import { useToast } from '@/components/Toast';
 import { ConfirmDialog, Modal, msgOf } from '@/components/ConfirmDialog';
-import VolumeRangeLookup from '@/components/VolumeRangeLookup';
+import ChapterManager from '@/components/ChapterManager';
 import { useAuth, canDownload } from '@/lib/auth';
 import { IcChevronLeft, IcDownload, IcCloudDownload, IcCheck, IcTrash, IcHourglass, IcGrid, IcRows, IcComment } from '@/components/icons';
 import { commentsLine, seriesTalkKey, talkWantedOf, type ChapterTalkCount } from '@/lib/comments';
@@ -65,8 +65,6 @@ import type { PlanMode } from '@/lib/numbering';
 import { AddSeriesDialog } from '@/components/AddSeriesDialog';
 import { editionChipLabels } from '@/lib/editions';
 import { continueChoice, continueText, readCountText } from '@/lib/continueLabel';
-import { radarText } from '@/lib/radar';
-import { catchUpText } from '@/lib/readingTime';
 import { offlineKeyShown, seriesActionGroups, type SeriesActionId } from '@/lib/seriesActions';
 import { RatingsPanel, useSeriesRating } from '@/components/RatingsPanel';
 import { ContinueBar, ContinueButton, ReadProgress, useOutOfView } from '@/components/ContinueBar';
@@ -1709,21 +1707,6 @@ function SeriesInner() {
     ? { read: books.content.filter((b) => !b.alternateOf && b.readProgress?.completed).length, total: books.content.filter(b => !b.alternateOf).length }
     : { read: series?.booksReadCount ?? 0, total: series?.booksCount ?? 0 }), [books, series]);
   const readLine = readCountText(readCount.read, readCount.total);
-  // v0.61.0: what comes next -- the release radar's estimate, as an estimate (lib/radar.ts): "Next chapter ~Friday ·
-  // usually Fridays", "Next chapter due any day", "Running late · last release 12d ago"; nothing for a series that is
-  // quiet, ended, on hiatus, undated or not monitored. Before it, how long the chapters left take at this reader's own
-  // pace (lib/readingTime.ts, "Catch up in ~2 hr"), asked only when it can be said: some read, some left.
-  const unreadCount = Math.max(0, readCount.total - readCount.read);
-  const { data: pace } = useQuery({
-    queryKey: ['reading-pace', id],
-    queryFn: () => api<{ perChapterMs: number | null; from: 'series' | 'all' | null }>(`/api/series/${id}/reading-pace`),
-    enabled: !!id && readCount.read > 0 && unreadCount > 0,
-    staleTime: 300_000,
-  });
-  const outlook = [
-    catchUpText({ read: readCount.read, unread: unreadCount, perChapterMs: pace?.perChapterMs }),
-    radarText(series?.yomi?.radar, { autoUpdate: series?.autoUpdate !== false }),
-  ].filter(Boolean).join(' · ');
   // Check for new chapters, the Sources sheet's and Edit details' own: the same notices, the same polling.
   const { checking, checkNow } = useCheckNow(id, () => {
     for (const k of [['series', id], ['series-books', id], ['series-listing', id], ['series-versions', id], ['home']]) qc.invalidateQueries({ queryKey: k });
@@ -1790,7 +1773,6 @@ function SeriesInner() {
       </div>
       {ctaText.caption && <p data-continue-caption className="-mt-1 truncate text-center text-xs text-fog-500">{ctaText.caption}</p>}
       {readLine && <ReadProgress read={readCount.read} total={readCount.total} text={readLine} />}
-      {outlook && <p data-series-outlook className="-mt-1 text-start text-[11px] leading-snug text-fog-500">{outlook}</p>}
       {/* Four keys, or three where there is nothing to save offline. Equal widths, whatever their number. */}
       <div data-series-keys className="mt-0.5 grid auto-cols-fr grid-flow-col gap-1.5">
         <FavouriteKey on={fav} pops={favPops} onToggle={toggleFav} />
@@ -1868,8 +1850,7 @@ function SeriesInner() {
         {/* Keys, not chips (UI refresh, noPills.test.ts): these act on the list rather than filter it -- even Filter
             opens a sheet -- and they sat in a row of capsules right under the squared four keys. */}
         <div data-chapter-toolbar className="flex flex-wrap items-center gap-1.5">
-          {isAdmin && <button className="btn-key" onClick={() => setVolumeLookup({})}>{tr('Look up chapter ranges')}</button>}
-          <button onClick={markAllRead} className="btn-key">{tr('Mark all read')}</button>
+          {isAdmin && <button className="btn-key" onClick={() => setVolumeLookup({})}>{tr('Manage chapters')}</button>}
           <button onClick={() => setAsc((a) => !a)} className="btn-key">{asc ? tr('Oldest') : tr('Newest')}</button>
           {/* The group filter and the ghost switch live in a sheet; the count of active choices is a tiny
               badge on the chip, not ` · {n}` text, which is what pushed the row past 358 px. Rendered only
@@ -2271,7 +2252,7 @@ function SeriesInner() {
           onSaved={() => { for (const k of [['series-books', id], ['series', id], ['home']]) qc.invalidateQueries({ queryKey: k }); }} />
       )}
       {collecting && <CollectionSheet seriesId={id} onClose={() => setCollecting(false)} />}
-      {volumeLookup && <VolumeRangeLookup seriesId={id} title={title} target={volumeLookup} onClose={() => setVolumeLookup(null)}
+      {volumeLookup && series && <ChapterManager series={series} books={allBooks} target={volumeLookup} onMark={markChapter} onClose={() => setVolumeLookup(null)}
         onSaved={() => { for (const k of [['series-books', id], ['series', id], ['series-listing', id], ['library'], ['home']]) qc.invalidateQueries({ queryKey: k }); }} />}
       {addingLang && series && (
         <AddSeriesDialog seed={{ kind: 'edition', of: id, title, ...addingLang }} sources={[]} mayFollow={isAdmin}

@@ -764,7 +764,7 @@ export default async function adminRoutes(app: FastifyInstance) {
       /**
        * What the 18+ switch hides besides 18+ libraries: genres to treat as adult -- a surfacing preference, which
        * changes nothing about who may open a series, and one title can be exempted from it on its own page
-       * (`adultExempt` on the series meta route) -- and the sources rated Adult only, whatever their extension says.
+       * (ageRating: 0 on the series meta route) -- and the sources rated Adult only, whatever their extension says.
        * Since v0.73.0 that rating is also a permission (lib/visibility.ts sourceRatedAdult): an account limited
        * below 18 is refused those sources, as it is a source whose extension declares itself adult. The Sources
        * sheet rates one source at a time (PUT /api/admin/sources/:id/age-rating); this replaces the whole list.
@@ -2379,20 +2379,10 @@ export default async function adminRoutes(app: FastifyInstance) {
       // A minimum age, or null to fall back to whatever ComicInfo said. See lib/ageRating.ts.
       ageRating: z.number().int().min(0).max(18).nullish(),
       /**
-       * "Always show": keep this series visible when the 18+ switch would hide it (its genres, its rating, its
-       * library). A shelf switch only: an account whose age limit is below the series' rating still cannot open it.
-       *
-       * Absent leaves the flag as it is, which matters because this route writes every other column
-       * unconditionally: the edit modal does not send this field, and without the COALESCE below an
-       * ordinary retitle would quietly clear the exemption.
-       */
-      adultExempt: z.boolean().nullish(),
-      /**
        * Which way the series reads (#102), one of Komga's four, or null for "automatic": whatever ComicInfo,
        * the source or AniList said (lib/readingDirection.ts), WEBTOON when none did.
        *
-       * ABSENT leaves it as it is and NULL clears it -- the three states the column needs. A COALESCE, as
-       * adultExempt has, cannot clear, and writing it unconditionally like the rest would let an edit modal
+       * ABSENT leaves it as it is and NULL clears it -- the three states the column needs. A COALESCE cannot clear, and writing it unconditionally like the rest would let an edit modal
        * from before this field (a cached PWA) wipe the direction on every retitle.
        */
       readingDirection: z.enum(READING_DIRECTIONS).nullable().optional(),
@@ -2434,30 +2424,29 @@ export default async function adminRoutes(app: FastifyInstance) {
     const type = isKnownSeriesType(b.data.seriesType) ? b.data.seriesType : null;
     await tx(async (qq) => {
       await qq(
-        `INSERT INTO series_overrides (series_id, title, summary, author, status, genres, age_rating, adult_exempt, reading_direction, series_type, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $10, $12, now())
+        `INSERT INTO series_overrides (series_id, title, summary, author, status, genres, age_rating, reading_direction, series_type, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $9, $11, now())
          ON CONFLICT (series_id) DO UPDATE SET title = $2, summary = $3, author = $4, status = $5,
            genres = $6, age_rating = $7,
-           adult_exempt = COALESCE($8, series_overrides.adult_exempt),
-           reading_direction = CASE WHEN $9::boolean THEN $10 ELSE series_overrides.reading_direction END,
-           series_type = CASE WHEN $11::boolean THEN $12 ELSE series_overrides.series_type END,
+           reading_direction = CASE WHEN $8::boolean THEN $9 ELSE series_overrides.reading_direction END,
+           series_type = CASE WHEN $10::boolean THEN $11 ELSE series_overrides.series_type END,
            updated_at = now()`,
         [id, norm(b.data.title), norm(b.data.summary), norm(b.data.author), norm(b.data.status),
-         normGenres(b.data.genres), b.data.ageRating ?? null, b.data.adultExempt ?? null,
+         normGenres(b.data.genres), b.data.ageRating ?? null,
          sentDirection, b.data.readingDirection ?? null, sentType, type],
       );
       // The 18+ rating is the WORK's (v0.52.0, #72): written onto every other language edition in the same
       // transaction, so a capped account can never open the Spanish copy of a work rated 18+ in English, nor the 18+
-      // switch tidy one edition away and leave the other. Only the rating and "Always show": a title or a summary is
+      // switch tidy one edition away and leave the other. Only the rating: a title or a summary is
       // each edition's own. Reintroduce by dropping this: "rating one edition 18+ hides the other from a capped
       // account" in editions.int.test.ts opens the sibling.
       await qq(
-        `INSERT INTO series_overrides (series_id, age_rating, adult_exempt)
-         SELECT o.id, $2, $3 FROM lib_series s JOIN lib_series o ON o.work_id = s.work_id AND o.id <> s.id
+        `INSERT INTO series_overrides (series_id, age_rating)
+         SELECT o.id, $2 FROM lib_series s JOIN lib_series o ON o.work_id = s.work_id AND o.id <> s.id
           WHERE s.id = $1 AND s.work_id IS NOT NULL
          ON CONFLICT (series_id) DO UPDATE SET age_rating = EXCLUDED.age_rating,
-           adult_exempt = COALESCE(EXCLUDED.adult_exempt, series_overrides.adult_exempt), updated_at = now()`,
-        [id, b.data.ageRating ?? null, b.data.adultExempt ?? null],
+           updated_at = now()`,
+        [id, b.data.ageRating ?? null],
       );
     });
     await logAudit('series.meta_override', { userId: userIdOf(req), detail: { id }, req });

@@ -270,10 +270,9 @@ export function browsable(alias: string, ctx: ViewCtx, p: Params): string {
   // interpolate the result into queries whose parameter arrays are hand-written, so a bound parameter would
   // emit a `$N` nothing ever binds -- and `q()` would either throw or, worse, collide with the caller's own
   // $1. ADULT_RATING is a code constant, never user input, so interpolating it is safe.
-  // "Always show" (`series_overrides.adult_exempt`) is one series' explicit answer, and it outranks every
-  // 18+ rule below -- its library's rating, its own rating and its genres alike. It is display only: `base`
-  // above is `visible()`, so an account whose age cap is below the series' rating still never lists it.
-  const exempt = `COALESCE((SELECT o_ex0.adult_exempt FROM series_overrides o_ex0 WHERE o_ex0.series_id = ${alias}.id), false)`;
+  // An explicit All ages rating (0) overrides adult shelving inferred from genres or the library.
+  // NULL means unrated, not All ages. visible() still enforces library access and the member's age cap.
+  const exempt = `COALESCE(COALESCE((SELECT o_ex0.age_rating FROM series_overrides o_ex0 WHERE o_ex0.series_id = ${alias}.id), ${alias}.age_rating) = 0, false)`;
   const parts = [base, `(${exempt} OR NOT EXISTS (
     SELECT 1 FROM libraries l_ad WHERE l_ad.id = ${alias}.library_id AND l_ad.age_rating >= ${ADULT_RATING}))`];
   // The SERIES' own rating, as `visible()` resolves it (admin override, then what the scan read). Only the
@@ -347,7 +346,7 @@ export async function browsableIds(ids: readonly string[], ctx: ViewCtx): Promis
 /**
  * Which of these series this viewer may see NAMED in a record of what was done to them (v0.55.1): Fix everything's lines
  * and its "Now:" (lib/autofix.ts). The listing rule, `browsable()`, judged on each series' row as it stands -- its
- * library, rating, genres and "Always show" -- with its own merged or deleted state set aside: a record of a merge names
+ * library, rating and genres -- with its own merged or deleted state set aside: a record of a merge names
  * the series that went, so `browsableIds` would hide every merge it reports, adult or not, where what the rule is asked
  * here is the viewer's reach (their libraries, age cap and 18+ switch). A series gone from the table altogether cannot be
  * judged, and is not named. Reintroduce `browsableIds` in its place: "a merge of a series that is not 18+ is still said"

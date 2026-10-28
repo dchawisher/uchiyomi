@@ -5,8 +5,7 @@
 //   - a genre on `server_settings.adult_genres` takes a series off a listing while the switch is off, the
 //     same request with `?adult=1` brings it back, and an admin genre override wins over what the scan
 //     read -- the same precedence the age rating has;
-//   - `series_overrides.adult_exempt` lets one series through, and the meta route does not clear it when a
-//     client (the edit modal of an older build, a script) leaves the field out;
+//   - an explicit All ages rating overrides adult genre shelving; the retired flag is ignored;
 //   - a source on `adult_sources` leaves the source list and the cross-source fan-out exactly as a
 //     self-declared NSFW source does, and is not asked at all;
 //   - the genre list is read in SQL from its column (browsable() cannot bind), so a hostile value stored
@@ -194,18 +193,16 @@ test('the 18+ filter hides named genres and sources, and nothing else', { skip }
       assert.notEqual(r.statusCode, 404, `fill/scan refused a series its viewer opened: ${r.body}`);
     });
 
-    await t.test('adult_exempt lets one series through, and a save that omits it keeps it', async () => {
-      const put = (payload: Record<string, unknown>) =>
-        app.inject({ method: 'PUT', url: `/api/admin/series/${EXEMPT}/meta`, headers, payload });
-      assert.equal((await put({ title: TITLE(EXEMPT), adultExempt: true })).statusCode, 200);
-      assert.ok((await listed()).includes(EXEMPT), 'the exemption did not let the series through');
-      // Reintroduce by writing `adult_exempt = $8` without the COALESCE: an ordinary retitle clears it.
-      assert.equal((await put({ title: TITLE(EXEMPT) })).statusCode, 200);
-      assert.ok((await listed()).includes(EXEMPT), 'a metadata save without adultExempt cleared the exemption');
+    await t.test('All ages is an explicit rating that overrides adult genre classification', async () => {
+      const put = (payload: Record<string, unknown>) => app.inject({ method: 'PUT', url: `/api/admin/series/${EXEMPT}/meta`, headers, payload });
+      assert.equal((await put({ title: TITLE(EXEMPT), ageRating: 0 })).statusCode, 200);
+      assert.ok((await listed()).includes(EXEMPT));
+      assert.equal((await put({ title: TITLE(EXEMPT), ageRating: 0 })).statusCode, 200);
       const s = await app.inject({ method: 'GET', url: `/api/series/${EXEMPT}`, headers });
-      assert.equal(s.json().overrides?.adultExempt, true, 'the edit modal cannot seed its checkbox');
-      assert.equal((await put({ title: TITLE(EXEMPT), adultExempt: false })).statusCode, 200);
-      assert.ok(!(await listed()).includes(EXEMPT), 'the exemption could not be turned off');
+      assert.equal(s.json().overrides.ageRating, 0);
+      assert.equal(s.json().overrides.adultExempt, undefined);
+      assert.equal((await put({ title: TITLE(EXEMPT), ageRating: null, adultExempt: true })).statusCode, 200);
+      assert.ok(!(await listed()).includes(EXEMPT), 'obsolete exemption cannot bypass the rating');
     });
 
     await t.test('a capped account still cannot open an exempt 18+ series', async () => {

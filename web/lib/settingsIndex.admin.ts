@@ -73,9 +73,9 @@ export const ADMIN_SETTINGS: SettingsIndex = {
     // ---- Downloads ----
     { id: 'update-interval', cat: 'downloads', label: 'Library update interval', keywords: ['update interval', 'schedule', 'how often', 'check for new chapters'],
       help: 'How often every followed series is asked for new chapters.' },
-    { id: 'finish-downloads', cat: 'downloads', label: 'Finish downloads on their own',
+    { id: 'finish-downloads', cat: 'downloads', label: 'Assertively complete downloads',
       keywords: ['rate limit', 'rate limited', 'blocked', 'stuck downloads', 'resume downloads', 'retry', 'other sources'] },
-    { id: 'source-order', cat: 'downloads', label: 'Source order', keywords: ['priority', 'preferred source'] },
+    { id: 'source-order', cat: 'downloads', label: 'Source ranking', keywords: ['priority', 'preferred source', 'source order'] },
     { id: 'scanlators', cat: 'downloads', label: 'Scanlation groups',
       keywords: ['groups', 'scanlators', 'translation groups', 'blocked groups', 'scanlation'] },
     { id: 'blocked-groups', cat: 'downloads', label: 'Blocked groups', editor: 'scanlators' },

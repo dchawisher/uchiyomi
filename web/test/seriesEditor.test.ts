@@ -92,11 +92,11 @@ test('a field commits by saving the whole object, one save at a time, and a refu
   const second = saver.save({ title: 'Renamed' });
   await tick();
   assert.equal(sent.length, 1, 'the second save went out before the first answered');
-  assert.deepEqual(Object.keys(sent[0]).sort(), ['adultExempt', 'ageRating', 'author', 'genres', 'readingDirection', 'seriesType', 'status', 'summary', 'title'],
+  assert.deepEqual(Object.keys(sent[0]).sort(), ['ageRating', 'author', 'genres', 'readingDirection', 'seriesType', 'status', 'summary', 'title'],
     'a save sends only the field it changed');
   assert.deepEqual(sent[0], {
     title: 'Renamed', summary: 'A tale.', author: 'Scanned Author', status: 'COMPLETED', genres: ['Action'],
-    ageRating: null, adultExempt: false, readingDirection: null, seriesType: null,
+    ageRating: null, readingDirection: null, seriesType: null,
   }, 'the first save is not the whole object as it stands when it is sent');
   answers.shift()!();
   await first;
@@ -118,7 +118,7 @@ test('a field commits by saving the whole object, one save at a time, and a refu
   const src = read(EDITOR);
   assert.match(src, /metaSaver\(seedMeta\(series\), \(body\) => api\(`\/api\/admin\/series\/\$\{id\}\/meta`, \{ method: 'PUT', json: body \}\), setMeta\)/,
     'the dialog does not save through the whole-object saver');
-  for (const f of ['title', 'summary', 'author', 'status', 'genres', 'readingDirection', 'ageRating', 'adultExempt', 'seriesType']) {
+  for (const f of ['title', 'summary', 'author', 'status', 'genres', 'readingDirection', 'ageRating', 'seriesType']) {
     assert.match(src, new RegExp(`\\(${f}\\) => save\\(\\{ ${f} \\}\\)`), `${f} does not commit through save()`);
   }
   assert.equal((src.match(/\/meta`/g) ?? []).length, 1, 'something in the dialog PUTs the meta route itself');
@@ -132,22 +132,21 @@ test('the fields seed from the override where one exists, exactly as the dialog 
   const plain = seedMeta(series());
   assert.deepEqual(plain, {
     title: 'Walk Tale', summary: 'A tale.', author: 'Scanned Author', status: 'Ongoing', ageRating: '', genres: ['Action'],
-    adultExempt: false, readingDirection: '', seriesType: '',
+    readingDirection: '', seriesType: '',
   });
   const over = seedMeta(series({
     metadata: { title: 'Walk Tale', summary: 'A tale.', author: 'Scanned Author', status: 'Ongoing', genres: ['Action'], ageRating: 15, readingDirection: 'RIGHT_TO_LEFT' },
-    overrides: { ...OVERRIDES, author: 'Hand Author', genres: [], ageRating: 13, adultExempt: true, readingDirection: null },
+    overrides: { ...OVERRIDES, author: 'Hand Author', genres: [], ageRating: 13, readingDirection: null },
   }));
   assert.equal(over.author, 'Hand Author', 'an author override is not what the field shows');
   assert.equal(over.status, 'Ongoing', 'no status override falls back to the scanned status');
   assert.deepEqual(over.genres, [], 'genres cleared on purpose come back as the scanned ones');
   assert.equal(over.ageRating, '13', 'a rating override is not what the field shows');
-  assert.equal(over.adultExempt, true, '"Always show" is not seeded from the override');
   assert.equal(over.readingDirection, '', 'the detected direction is seeded as if an admin had chosen it');
   assert.equal(seedMeta(series({ metadata: { title: 'Walk Tale', ageRating: 15 } })).ageRating, '15', 'a scanned rating with no override is not shown');
   // A retitle sends the seeded object: the override author kept, the detected direction NOT made an override.
   assert.deepEqual(metaBody({ ...over, title: 'Renamed' }), {
-    title: 'Renamed', summary: 'A tale.', author: 'Hand Author', status: 'Ongoing', genres: [], ageRating: 13, adultExempt: true, readingDirection: null, seriesType: null,
+    title: 'Renamed', summary: 'A tale.', author: 'Hand Author', status: 'Ongoing', genres: [], ageRating: 13, readingDirection: null, seriesType: null,
   });
   // And the fields show it.
   const html = render('details', series({ overrides: { ...OVERRIDES, author: 'Hand Author' } }));
@@ -234,10 +233,10 @@ test('Use the first page: offered unless it already is, Reset only over a choice
   assert.match(src, /mode: 'first_page'/, 'the choice is not the route\'s first_page');
   // Under the cover: what automatic means -- what Reset to automatic gives back -- or the choice; an upload needs no words.
   const note = (cover: string | null) => elementWith(render('details', series({ overrides: { ...OVERRIDES, cover } })), 'data-art-cover-note');
-  assert.match(note(null), /Automatic: the source’s cover, or AniList’s when its entry has the same name, else the first page\./);
-  assert.match(note(FIRST_PAGE_COVER), /The first page, by your choice: nothing found online replaces it\./);
+  assert.equal(note(null), '');
+  assert.equal(note(FIRST_PAGE_COVER), '');
   assert.equal(note('upload'), '', 'an uploaded cover is explained in words');
-  assert.match(elementWith(render('details'), 'data-art-cover-note'), /Automatic:/, 'a series with no overrides at all says nothing');
+  assert.equal(elementWith(render('details'), 'data-art-cover-note'), '');
 });
 
 test('Mark caught up and the folder paths are still there, in Updates and Files', () => {

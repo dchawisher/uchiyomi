@@ -656,10 +656,11 @@ export function LinkRow({ href, label, help, onClick }: {
  * disclosure is controlled because switching consent ON has to open it -- what is sent must be visible at
  * the moment of consent. `id` names the CONTENT (`aria-controls` points at it).
  */
-export function Disclosure({ label, open, defaultOpen, onOpenChange, id, children }: {
+export function Disclosure({ label, open, defaultOpen, onOpenChange, id, children, prominent = false }: {
   label: string;
   open?: boolean;
   defaultOpen?: boolean;
+  prominent?: boolean;
   onOpenChange?: (o: boolean) => void;
   id?: string;
   children: ReactNode;
@@ -679,7 +680,7 @@ export function Disclosure({ label, open, defaultOpen, onOpenChange, id, childre
           on a phone, so the padding makes it 28 px while `mt-0.5` (2 + 6 = the old 8) and `-mb-1.5` keep
           the text exactly where it was in the rhythm. */}
       <button type="button" aria-expanded={isOpen} aria-controls={cid} onClick={toggle}
-        className="mt-0.5 -mb-1.5 flex items-center gap-1 py-1.5 text-xs text-fog-400 hover:text-fog-200">
+        className={`flex items-center gap-1 py-1.5 ${prominent ? 'text-sm font-medium text-fog-200' : 'mt-0.5 -mb-1.5 text-xs text-fog-400 hover:text-fog-200'}`}>
         {label}
         {/* A down chevron that rotates rather than a right one that points: it needs no mirroring. */}
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"

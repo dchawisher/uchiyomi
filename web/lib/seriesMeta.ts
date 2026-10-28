@@ -18,8 +18,6 @@ export interface SeriesMeta {
   /** A minimum age as a string, or '' for "whatever the files said". */
   ageRating: string;
   genres: string[];
-  /** "Always show": kept on the shelf while "Show 18+" is off. */
-  adultExempt: boolean;
   /** One of Komga's four, or '' for automatic. */
   readingDirection: string;
   /** What kind of comic it is (bff lib/seriesType.ts), or '' for automatic: what the notice-chapter switches go by. */
@@ -32,10 +30,10 @@ export interface SeriesMeta {
  * - author, status, the age rating and the genres: the OVERRIDE where one exists, else the scanned value. Seeding
  *   from the scan alone showed the scanned author while an override was active, and a save then wrote the very
  *   value the override was made to replace back over it.
- * - "Always show" and the reading direction: the override ONLY. The direction's effective value is whatever was
+ * - The reading direction: the override ONLY. The direction's effective value is whatever was
  *   detected (the chapter files, the source, AniList: bff lib/readingDirection.ts), and seeding from it turned that
  *   into a hand-set override on the first unrelated save -- a retitle -- after which a better signal could never
- *   reach the series again. An exemption seeded `false` without reading it would clear every one on a retitle.
+ *   reach the series again.
  * - title and description: what the series shows, the override applied (the payload's `metadata`).
  */
 export function seedMeta(series: Series): SeriesMeta {
@@ -50,7 +48,6 @@ export function seedMeta(series: Series): SeriesMeta {
     // everyone -- so setting one opts a title IN to being filtered, never the rest of the library out.
     ageRating: o?.ageRating != null ? String(o.ageRating) : m?.ageRating != null ? String(m.ageRating) : '',
     genres: o?.genres ?? m?.genres ?? [],
-    adultExempt: o?.adultExempt === true,
     readingDirection: o?.readingDirection ?? '',
     // The override only, for the reason the direction is: the detected type must stay free to improve.
     seriesType: o?.seriesType ?? '',
@@ -66,7 +63,6 @@ export function metaBody(m: SeriesMeta) {
     status: m.status,
     genres: m.genres,
     ageRating: m.ageRating === '' ? null : Number(m.ageRating),
-    adultExempt: m.adultExempt,
     // '' is automatic and goes up as null, which the route reads as "clear the override".
     readingDirection: m.readingDirection || null,
     seriesType: m.seriesType || null,

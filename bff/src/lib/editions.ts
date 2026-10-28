@@ -80,19 +80,18 @@ export async function linkEdition(seriesId: string, opts: { of: string; lang: st
 }
 
 /**
- * The 18+ rating an admin set on `from` (series_overrides.age_rating and adult_exempt), onto `to`. Only what was set:
+ * The 18+ rating an admin set on `from` (series_overrides.age_rating), onto `to`. Only what was set:
  * a sibling's own override for a field `from` leaves blank stays. The meta PUT writes the same thing over the whole
  * work (routes/admin.ts), so the rating can never differ between two editions of one work.
  */
 export async function copyRating(qq: Qq, from: string, to: string[]): Promise<void> {
   if (!to.length) return;
   await qq(
-    `INSERT INTO series_overrides (series_id, age_rating, adult_exempt)
-     SELECT t, o.age_rating, o.adult_exempt FROM series_overrides o, unnest($2::text[]) AS t
-      WHERE o.series_id = $1 AND (o.age_rating IS NOT NULL OR o.adult_exempt IS NOT NULL)
+    `INSERT INTO series_overrides (series_id, age_rating)
+     SELECT t, o.age_rating FROM series_overrides o, unnest($2::text[]) AS t
+      WHERE o.series_id = $1 AND o.age_rating IS NOT NULL
      ON CONFLICT (series_id) DO UPDATE SET
        age_rating = COALESCE(EXCLUDED.age_rating, series_overrides.age_rating),
-       adult_exempt = COALESCE(EXCLUDED.adult_exempt, series_overrides.adult_exempt),
        updated_at = now()`,
     [from, to],
   );

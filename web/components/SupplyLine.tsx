@@ -62,7 +62,7 @@ export function SupplyLine({ parts, loaded, wide, onOpen }: {
           {p.kind === 'text' && <span>{tr(p.key, p.args)}</span>}
         </span>
       ))}
-      <IcChevronRight width={14} height={14} className="ms-auto shrink-0 rtl:rotate-180" />
+      <IcChevronRight width={14} height={14} className="shrink-0 rtl:rotate-180" />
     </button>
   );
 }
