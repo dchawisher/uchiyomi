@@ -162,7 +162,8 @@ test('the profile settings and connections hide what only other devices use', ()
   // render there -- but the window IS the installed app. Reintroduce by dropping `|| inDesktopWindow()`:
   // "Install Uchiyomi shows inside the desktop app" fails.
   const device = settings.slice(settings.indexOf('function DeviceSection('));
-  assert.match(device, /setStandalone\(window\.matchMedia\('\(display-mode: standalone\)'\)\.matches \|\| \(navigator as any\)\.standalone === true \|\| inDesktopWindow\(\)\);/, 'Install Uchiyomi shows inside the desktop app');
+  assert.match(device, /const \{ standalone \} = useInstallApp\(\)/);
+  assert.match(code(read('lib/installApp.ts')), /setStandalone\(display\.matches[\s\S]*?\|\| inDesktopWindow\(\)/, 'Install Uchiyomi shows inside the desktop app');
   assert.match(device, /\{!standalone && \(\s*<Row id="install" stacked label=\{tr\('Install Uchiyomi'\)\}>/, 'the install row is no longer gated on standalone');
   // ...and the window has no push service (Electron ships none): the push switch there could only fail with
   // "The browser did not grant it." (V2 review). Reintroduce by rendering the SwitchRow whatever `inApp` says:

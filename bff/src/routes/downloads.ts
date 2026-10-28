@@ -82,6 +82,7 @@ export default async function downloadRoutes(app: FastifyInstance) {
       bookId: id,
       seriesId: book.seriesId,
       seriesTitle: book.seriesTitle ?? series?.metadata?.title ?? '',
+      alternateOf: book.alternateOf ?? null,
       title: book.metadata?.title ?? book.name,
       number: book.metadata?.number ?? book.number,
       pageCount: mapped.length,

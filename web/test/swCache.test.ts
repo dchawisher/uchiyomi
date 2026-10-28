@@ -76,6 +76,19 @@ async function doFetch(handlers: Record<string, Function>, url: string) {
   return responded ? await responded : undefined;
 }
 
+test('installation metadata refreshes poisoned login HTML and remains usable offline', async () => {
+  const { handlers, store, ctx } = loadSw();
+  const url = 'https://yomi.test/manifest.webmanifest';
+  store.set('yomi-static-v12', new Map([[url, new Response('<html>Sign in</html>', { headers: { 'content-type': 'text/html' } })]]));
+  const manifest = { name: 'Uchiyomi', display: 'standalone', start_url: '/' };
+  ctx.fetch = async () => new Response(JSON.stringify(manifest), { headers: { 'content-type': 'application/manifest+json' } });
+  assert.deepEqual(await (await doFetch(handlers, url)).json(), manifest);
+  ctx.fetch = async () => new Response('<html>Sign in</html>', { headers: { 'content-type': 'text/html' } });
+  assert.deepEqual(await (await doFetch(handlers, url)).clone().json(), manifest, 'login HTML cannot replace the valid manifest');
+  ctx.fetch = async () => { throw new Error('offline'); };
+  assert.deepEqual(await (await doFetch(handlers, url)).clone().json(), manifest);
+});
+
 test('signing out empties the caches that hold one account’s answers', async () => {
   const { handlers, store } = loadSw();
   assert.ok(handlers.message, 'the SW must listen for a sign-out message at all');

@@ -71,7 +71,9 @@ function overlay(books: any[], map: Map<string, { page: number; completed: boole
 /** Apply this user's reading state to a set of Komga books (no-op for admin = native Komga state). */
 async function booksForUser(req: FastifyRequest, books: any[]): Promise<any[]> {
   if ((NATIVE_PROGRESS && actsAsAdmin(req)) || !books.length) return books;
-  return overlay(books, await userProgress(userIdOf(req), books.map((b) => b.id)));
+  const progress = await userProgress(userIdOf(req), [...new Set(books.flatMap(b => [b.id, ...(b.alternateOf ? [b.alternateOf] : [])]))]);
+  return overlay(books, progress).map(b => b.alternateOf && progress.get(b.alternateOf)?.completed
+    ? { ...b, readProgress: { ...b.readProgress, page: b.media?.pagesCount ?? 0, completed: true, inherited: true } } : b);
 }
 
 
@@ -1096,7 +1098,7 @@ export default async function catalogRoutes(app: FastifyInstance) {
       if (!raw) continue;
       const books = await booksForUser(req, raw.content);
       // A pruned chapter has no pages to download; planning it would queue a manifest that answers 410.
-      const unread = books.filter((b: any) => !b.readProgress?.completed && !b.pruned).slice(0, n);
+      const unread = books.filter((b: any) => !b.readProgress?.completed && !b.pruned && !b.alternateOf).slice(0, n);
       for (const b of unread) out.push({ bookId: b.id, seriesId: sid });
     }
     return { content: out };

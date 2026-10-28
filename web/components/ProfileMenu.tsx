@@ -11,6 +11,7 @@ import { arrival } from '@/lib/destinations';
 import { openInConsole } from '@/lib/consoleOnScreen';
 import { useReduceEffects } from '@/lib/useReduceEffects';
 import { Avatar } from './Avatar';
+import { InstallApp } from './InstallApp';
 import { useIncognito } from './IncognitoBanner';
 import { AdultBadge, useAdultShown, useCanShowAdult } from './AdultToggle';
 import { Row, SwitchRow } from './settings';
@@ -63,6 +64,7 @@ export function QuickSettings({ onClose }: { onClose: () => void }) {
         )}
         <SwitchRow label={tr('Reduce effects')} on={reduceEffects} onChange={saveReduceEffects} />
       </div>
+      <div className="mt-2 border-t border-ink-800/70 pt-2"><InstallApp compact /></div>
       <div className="mt-2 flex items-center justify-between gap-2 border-t border-ink-800/70 pt-3">
         <a href="/profile/?tab=general" onClick={go('/profile/?tab=general')} data-profile-settings-link className={link}>{tr('Profile settings')}</a>
         {/* Not on desktop: the app signs itself back in at once, so "Sign out" there would do nothing visible (as on the profile rail). */}

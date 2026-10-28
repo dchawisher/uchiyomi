@@ -236,8 +236,8 @@ export function runLabel(r: Extract<Row, { kind: 'run' }>, o: { paused?: boolean
  * and stepping onto it is exactly right. Without this the reader's own next/prev landed on a tombstone and
  * showed "Chapter deleted" in the middle of a series that was otherwise all there.
  */
-export function openableChapters<T extends { id: string; pruned?: boolean }>(books: T[], savedIds: Set<string>): T[] {
-  return books.filter((b) => !b.pruned || savedIds.has(b.id));
+export function openableChapters<T extends { id: string; pruned?: boolean; alternateOf?: string | null }>(books: T[], savedIds: Set<string>, currentId?: string): T[] {
+  return books.filter((b) => (!b.alternateOf || b.id === currentId) && (!b.pruned || savedIds.has(b.id)));
 }
 
 /**
@@ -320,6 +320,7 @@ export function deliberatelyDeleted(b: Pick<Book, 'pruned' | 'prunedReason' | 'o
  */
 export function ghostOfDeleted(b: Book): Ghost {
   return {
+    ...(b.alternateOf ? { alternateOf: b.alternateOf } : {}),
     bookId: b.id,
     number: b.number,
     numberEnd: b.numberEnd ?? null,

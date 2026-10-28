@@ -197,5 +197,5 @@ test('the service worker precaches the offline surface', () => {
     assert.ok(s.includes(`'${p}'`), `${p} is not precached, so a cold boot cannot open it`);
   }
   // v11: the admin console went network-only, and the admin answers a v10 worker stored have to be dropped.
-  assert.match(s, /const VERSION = 'v11'/, 'the cache keys changed shape; VERSION must move with them');
+  assert.match(s, /const VERSION = 'v12'/, 'the cache keys changed shape; VERSION must move with them');
 });

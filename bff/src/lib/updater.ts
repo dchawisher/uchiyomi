@@ -27,6 +27,7 @@ import { say } from './said';
 import { withOrigin } from './downloadActivity';
 import { decideNumbering, folderBusy, numberedChapters, renumberRunning, resumeRenumber, settleNumbering, NUMBERING_COLUMNS, type Settled } from './numbering';
 import { aliasParts, partRulesApply } from './partAlias';
+import { coveredParts } from './chapterParts';
 import { atHiddenNumber, isListedNotice } from './noticeChapters';
 import { hiddenNumbersOf } from './hiddenChapters';
 import { numKey } from './postingOrder';
@@ -286,7 +287,7 @@ export async function updateSeries(seriesId: string, maxNew = 10, opts: UpdateOp
 }
 
 async function visitSeries(seriesId: string, maxNew: number, opts: UpdateOpts): Promise<UpdateResult> {
-  let s = await one<any>(`SELECT id,title,source_id,source_series_id,web,folder,summary,author,genres,status,chapter_floor,scanlator_prefs,source_prefs,auto_update,
+  let s = await one<any>(`SELECT id,title,source_id,source_series_id,web,folder,summary,author,genres,status,chapter_floor,scanlator_prefs,source_prefs,auto_update,full_chapters,
     ${NUMBERING_COLUMNS}, ${ARCHIVE_BOUNDARY} FROM lib_series s WHERE s.id=$1 AND ${visibleToAll('s')}`, [seriesId]);
   if (!s) return nothing('', 'gone');
   // This is the common boundary for direct Check/update calls as well as background refreshes. Route-level
@@ -500,7 +501,7 @@ async function visitSeries(seriesId: string, maxNew: number, opts: UpdateOpts): 
   // Reintroduce by dropping this block: "a follower's other numbering of the parts on disk" in updater.int.test.ts
   // downloads 12.1 and 12.6.
   let covered = new Set<number>();
-  if (partRulesApply(s)) {
+  if (partRulesApply(s) && !s.full_chapters) {
     const disk = await q<{ number: number; source_id: string | null }>(
       `SELECT COALESCE(ov.number, b.number) AS number, b.source_id FROM lib_books b LEFT JOIN book_overrides ov ON ov.book_id = b.id
         WHERE b.series_id = $1 AND ${heldBooks('b')}`, [seriesId]).catch(() => null);
@@ -534,6 +535,8 @@ async function visitSeries(seriesId: string, maxNew: number, opts: UpdateOpts): 
     }
   }
   const { releases, waiting: held } = chooseReleases(tagged, prefs, chooseOpts);
+  const sourceCovered = new Set(covered);
+  if (s.full_chapters) for (const n of await coveredParts(seriesId, releases.filter(r => !held.includes(r.number)).map(r => r.number), q, tagged.map(r => r.number))) covered.add(n);
 
   // A series added as "latest N" carries a floor, and what the source lists below it is not this job's
   // business: the sweep exists to fetch new releases, and the oldest-first loop below would otherwise spend
@@ -711,7 +714,7 @@ async function visitSeries(seriesId: string, maxNew: number, opts: UpdateOpts): 
   // previous listing standing" in seriesListing.int.test.ts reads 0 rows.
   // The copies of each number are stored in the same order the chooser ranked them (releaseOrder with
   // the same source ranks), so the listing's "best first" is the sweep's, not a second opinion.
-  if (fresh.size) await replaceListing(seriesId, listingRows(tagged, releases, heldNums, s.source_id, releaseOrder(prefs, chooseOpts), covered)).catch(() => {});
+  if (fresh.size) await replaceListing(seriesId, listingRows(tagged, releases, heldNums, s.source_id, releaseOrder(prefs, chooseOpts), sourceCovered)).catch(() => {});
 
   let added = 0;
   let failed = 0;

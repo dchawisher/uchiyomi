@@ -2,6 +2,7 @@ import { hash } from '@node-rs/argon2';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { q, one, tx } from '../lib/db';
+import { applyPartListing } from '../lib/chapterParts';
 import { postingOrderSeries, POSTING_ORDER_REFUSAL } from '../lib/numbering';
 import numberingRoutes from './numbering';
 import { lastNumber } from '../lib/chapterRanges';
@@ -1556,10 +1557,28 @@ export default async function adminRoutes(app: FastifyInstance) {
   // the sources list or the library holds -- the "Nothing yet" add's floor (routes/sources.ts), so the back catalogue
   // is never fetched and every later release is -- and a number or null puts back the floor the answer reported as
   // `previous`, which is the Undo.
+  app.put('/api/admin/series/:id/part-exception', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const b = z.object({ number: z.number().min(0).max(1e6).refine(n => !Number.isInteger(n)), keepSeparate: z.boolean() }).strict().safeParse(req.body);
+    if (!b.success) return reply.code(400).send({ error: 'bad_request' });
+    const changed = await tx(async qq => {
+      const s = await qq('SELECT id FROM lib_series WHERE id = $1 FOR UPDATE', [id]);
+      if (!s.length) return false;
+      if (b.data.keepSeparate) await qq('INSERT INTO series_part_extras (series_id, number) VALUES ($1, $2) ON CONFLICT DO NOTHING', [id, b.data.number]);
+      else await qq('DELETE FROM series_part_extras WHERE series_id = $1 AND number = $2::real', [id, b.data.number]);
+      await applyPartListing(qq, id);
+      return true;
+    });
+    if (!changed) return reply.code(404).send({ error: 'not_found' });
+    await logAudit('series.settings', { userId: userIdOf(req), detail: { seriesId: id, partException: b.data }, req });
+    return { ok: true };
+  });
+
   app.patch('/api/admin/series/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
     const b = z.object({
       autoUpdate: z.boolean().optional(),
+      fullChapters: z.boolean().optional(),
       scanlatorPrefs: prefsSchema.nullable().optional(),
       sourcePrefs: z.object({ priority: z.array(z.string().min(1).max(120)).max(100) }).nullable().optional(),
       borrowNames: z.boolean().nullable().optional(),
@@ -1571,12 +1590,16 @@ export default async function adminRoutes(app: FastifyInstance) {
     if (!b.success) return reply.code(400).send({ error: 'bad_request' });
     if (b.data.autoUpdate === undefined && b.data.scanlatorPrefs === undefined && b.data.sourcePrefs === undefined
         && b.data.borrowNames === undefined && b.data.lang === undefined && b.data.chapterFloor === undefined
-        && b.data.hideNotices === undefined) {
+        && b.data.hideNotices === undefined && b.data.fullChapters === undefined) {
       return reply.code(400).send({ error: 'bad_request', message: 'Nothing to change.' });
     }
     const row = await getSeriesRow(id);
     if (!row) return reply.code(404).send({ error: 'not_found' });
     // Every refusal before the first write: the fields below are written one by one.
+    if (b.data.fullChapters) {
+      const state = await one<{ busy: boolean }>(`SELECT numbering = 'posting_order' OR numbering_pending IS NOT NULL OR renumber_plan IS NOT NULL AS busy FROM lib_series WHERE id = $1`, [id]);
+      if (state?.busy) return reply.code(409).send({ error: 'numbering_conflict', message: 'Finish chapter numbering before enabling full chapters and split releases.' });
+    }
     const lang = b.data.lang == null ? null : canonLang(b.data.lang);
     if (b.data.lang != null && !lang) return reply.code(400).send({ error: 'bad_lang', message: 'That is not a language code.' });
     if (b.data.lang !== undefined) {
@@ -1683,9 +1706,17 @@ export default async function adminRoutes(app: FastifyInstance) {
       const effective = await seriesHidesNotices(id);
       notices = { hideNotices: b.data.hideNotices, hideNoticesEffective: effective, hiddenNotices: effective ? await hiddenCount(id) : 0 };
     }
+    if (b.data.fullChapters !== undefined) {
+      await tx(async qq => {
+        await qq('UPDATE lib_series SET full_chapters = $2 WHERE id = $1', [id, b.data.fullChapters]);
+        await applyPartListing(qq, id);
+      });
+      detail.fullChapters = b.data.fullChapters;
+    }
     await logAudit('series.settings', { userId: userIdOf(req), detail, req });
     return {
       ok: true, ...(b.data.autoUpdate !== undefined ? { autoUpdate: b.data.autoUpdate } : {}),
+      ...(b.data.fullChapters !== undefined ? { fullChapters: b.data.fullChapters } : {}),
       ...(b.data.lang !== undefined ? { lang } : {}), ...(caughtUp ? { chapterFloor: caughtUp } : {}),
       ...(notices ?? {}),
     };

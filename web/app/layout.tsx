@@ -35,7 +35,6 @@ const brand = localFont({
 export const metadata: Metadata = {
   title: 'Uchiyomi — your self-hosted manga server',
   description: 'Read, download and keep up with your manga, manhwa and webtoons, on your own server.',
-  manifest: '/manifest.webmanifest',
   appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'Uchiyomi' },
   icons: { icon: '/icons/favicon.png', apple: '/icons/apple-touch-icon.png' },
   openGraph: {
@@ -64,6 +63,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // suppressHydrationWarning: TONE_BOOT may have put `data-tone` on <html> before React hydrates it, on purpose.
     <html lang="en" className={`${display.variable} ${sans.variable} ${brand.variable}`} suppressHydrationWarning>
       <head>
+        <link rel="manifest" href="/manifest.webmanifest?v=2" crossOrigin="use-credentials" />
         {/* The reader's background tone from the device's copy, and the browser bar's colour, while the page is still
             being parsed: without it a Graphite or Midnight reader saw true black until the app booted (lib/tone.ts). */}
         <script dangerouslySetInnerHTML={{ __html: TONE_BOOT }} />

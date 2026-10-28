@@ -1,5 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { useInstallApp } from '@/lib/installApp';
+import { InstallApp } from './InstallApp';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '@/lib/api';
@@ -624,25 +626,7 @@ function DeviceSection() {
     return job;
   };
 
-  const [canInstall, setCanInstall] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
-  const [standalone, setStandalone] = useState(false);
-
-  useEffect(() => {
-    setCanInstall(!!(window as any).__yomiInstall);
-    setIsIOS(/iphone|ipad|ipod/i.test(navigator.userAgent));
-    // Uchiyomi Desktop's window (either mode) is an installed app already: nothing to install from it.
-    setStandalone(window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true || inDesktopWindow());
-  }, []);
-
-  const install = async () => {
-    const e = (window as any).__yomiInstall;
-    if (!e) return;
-    e.prompt();
-    await e.userChoice;
-    (window as any).__yomiInstall = null;
-    setCanInstall(false);
-  };
+  const { standalone } = useInstallApp();
 
   // Nothing to decide here: push is not configured on the server and the app is already installed.
   if (!enabledSrv && standalone) return null;
@@ -661,19 +645,7 @@ function DeviceSection() {
       {/* Already installed: the row is about installing, so it unmounts rather than congratulating you. */}
       {!standalone && (
         <Row id="install" stacked label={tr('Install Uchiyomi')}>
-          {canInstall ? (
-            <button type="button" onClick={install} className="btn-accent px-4 py-2 text-sm">
-              <IcDownload width={18} height={18} />{tr('Add to home screen')}
-            </button>
-          ) : isIOS ? (
-            <div className="max-w-prose text-sm text-fog-300">
-              <p className="mb-1 font-medium text-fog-100">{tr('Add to your iPhone')}</p>
-              <p>{tr('Tap Share in Safari, then Add to Home Screen.')}</p>
-              <p className="mt-2 text-xs text-fog-500">{tr('On iOS, offline downloads may be cleared by the system under storage pressure.')}</p>
-            </div>
-          ) : (
-            <p className="max-w-prose text-sm text-fog-400">{tr('Open in Chrome/Edge and use “Install app” from the menu.')}</p>
-          )}
+          <InstallApp />
         </Row>
       )}
     </RowGroup>

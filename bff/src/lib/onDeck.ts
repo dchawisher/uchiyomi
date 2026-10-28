@@ -9,6 +9,7 @@
 // Moved here from routes/catalog.ts (v0.61.0) so Home's two rails and the OPDS Keep reading shelf (routes/opds.ts) pick
 // by one rule.
 import { q } from './db';
+import { alternateBook } from './chapterParts';
 import { Params, browsable, type ViewCtx } from './visibility';
 import { noticeBook } from './noticeChapters';
 
@@ -69,7 +70,7 @@ export async function onDeckPicks(uid: string, ctx: ViewCtx, o: { window: DeckWi
                 (SELECT p.book_id FROM read_progress p
                    WHERE p.user_id = ${uidP} AND p.series_id = r.series_id AND p.completed = false
                      -- not a notice chapter the admin hides (lib/noticeChapters.ts): it is no chapter to resume
-                     AND NOT ${noticeBook('p.book_id')}
+                     AND NOT ${noticeBook('p.book_id')} AND NOT ${alternateBook('p.book_id')}
                      -- nor one whose pages were deleted (v0.60.1, found in Squeaks72's fork): it used to win here
                      -- and then be dropped by the resolved-book filter below, taking the whole series off the rail
                      -- instead of falling through to the next chapter. NOT EXISTS of a KNOWN tombstone, not EXISTS
@@ -82,7 +83,7 @@ export async function onDeckPicks(uid: string, ctx: ViewCtx, o: { window: DeckWi
                    WHERE b.series_id = r.series_id
                      -- never offer a chapter whose pages were deleted (a tombstone, lib/chapterCleanup.ts)
                      AND b.pruned_at IS NULL
-                     AND NOT ${noticeBook('b.id')}
+                     AND NOT ${noticeBook('b.id')} AND NOT ${alternateBook('b.id')}
                      AND NOT EXISTS (
                        SELECT 1 FROM read_progress p2
                         WHERE p2.user_id = ${uidP} AND p2.book_id = b.id AND p2.completed

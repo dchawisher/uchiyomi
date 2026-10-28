@@ -447,7 +447,7 @@ function ReaderInner() {
         // record is the last one anywhere, and the reader consults it before the server, so it opens fine.
         const saved = new Set((await listSeriesDownloads(first.seriesId).catch(() => [])).map((c) => c.bookId));
         if (alive) {
-          setChapterRefs(openableChapters(list.content, saved).map((b) => ({ id: b.id, label: chapterLabel(b) })));
+          setChapterRefs(openableChapters(list.content, saved, first.id).map((b) => ({ id: b.id, label: chapterLabel(b) })));
           setRefsFrom('live');
           setNumberOf(new Map(list.content.map((b) => [b.id, b.number])));
         }
@@ -457,7 +457,9 @@ function ReaderInner() {
         try {
           const local = await listSeriesDownloads(first.seriesId);
           if (alive && local.length) {
-            setChapterRefs(local.map((c) => ({ id: c.bookId, label: c.title || tr('Chapter {n}', { n: c.number }) })));
+            const held = new Set(local.map(c => c.bookId));
+            setChapterRefs(local.filter(c => !c.alternateOf || !held.has(c.alternateOf) || c.bookId === first.id)
+              .map((c) => ({ id: c.bookId, label: c.title || tr('Chapter {n}', { n: c.number }) })));
             setRefsFrom('offline');
           }
         } catch {}
@@ -1492,7 +1494,7 @@ function ReaderInner() {
     const n = activeChapter ? numberOf.get(activeChapter.id) : undefined;
     if (n == null) { router.push(`/series/?id=${encodeURIComponent(e.seriesId)}`); return; }
     try {
-      const target = readerTarget(n, (await fetchAllBooks(e.seriesId)).content, e.seriesId);
+      const target = readerTarget(n, (await fetchAllBooks(e.seriesId)).content.filter(b => !b.alternateOf), e.seriesId);
       if (target.kind === 'book') { router.replace(`/reader/?book=${target.id}`); return; }
       // `{number}`, not `{n}`: a chapter's number, not a count to agree with.
       toast(tr('Chapter {number} is not on the server in {language} yet.', { number: numLabel(n), language: languageName(e.lang) }), 'info');

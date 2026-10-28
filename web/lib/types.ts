@@ -197,6 +197,8 @@ export interface Series {
   libraryReader?: { mode?: 'vertical' | 'paged'; spread?: boolean; pagedDirection?: 'ltr' | 'rtl' | 'series' } | null;
   /** Whether the scheduled updater fetches new chapters for this series. */
   autoUpdate?: boolean;
+  fullChapters?: boolean;
+  partExtras?: number[];
   /** The folder on disk, relative to the library root. Only sent to admins, for the rename control. */
   folder?: string;
   /** Admins only (v0.52.0, #136): the folder as full paths on the server, one per root its chapters are under. */
@@ -309,6 +311,8 @@ export interface BookMetadata {
 }
 
 export interface Book {
+  alternateOf?: string | null;
+  keepSeparate?: boolean;
   id: string;
   /** where this book was last read, when that was another device (see /api/home) */
   lastDevice?: { id: string; name: string | null; at: string } | null;
@@ -382,6 +386,7 @@ export type GhostWhy = 'missing' | 'held' | 'blocked' | 'failed' | 'floor' | 'ar
 
 /** A chapter the sources list that has no row in the library: what the updater knows about it, as of its last check. */
 export interface Ghost {
+  alternateOf?: string | null;
   /** A deliberate tombstone keeps its original identity; absent for a source-only listing row. */
   bookId?: string;
   number: number;
@@ -792,6 +797,7 @@ export interface HomePayload {
 }
 
 export interface DownloadManifest {
+  alternateOf?: string | null;
   bookId: string;
   seriesId: string;
   seriesTitle: string;

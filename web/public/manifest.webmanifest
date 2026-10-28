@@ -1,5 +1,6 @@
 {
   "name": "Uchiyomi",
+  "id": "/",
   "short_name": "Uchiyomi",
   "description": "Your self-hosted manga server. Read, download, keep up.",
   "start_url": "/",

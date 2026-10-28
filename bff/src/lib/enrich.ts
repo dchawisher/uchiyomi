@@ -20,6 +20,7 @@ import { autoHeroFor } from './autoHero';
 import { effectiveLang } from './seriesLang';
 import { browsable, Params, type ViewCtx } from './visibility';
 import { hidingActive, noticeBook, noticeHidden } from './noticeChapters';
+import { alternateBook } from './chapterParts';
 import { radarsFor } from './releaseRadar';
 
 export async function seriesColors(ids: string[]): Promise<Map<string, string>> {
@@ -114,7 +115,7 @@ async function seriesProgress(userId: string, seriesIds: string[]): Promise<Map<
       WHERE user_id = $1 AND series_id = ANY($2)
         -- A hidden notice chapter (lib/noticeChapters.ts) is out of the total these are laid against, so out of
         -- these too, or one read notice would cover for an unread chapter.
-        AND NOT ${noticeBook('read_progress.book_id')}
+        AND NOT ${noticeBook('read_progress.book_id')} AND NOT ${alternateBook('read_progress.book_id')}
       GROUP BY series_id`,
     [userId, seriesIds],
   );

@@ -123,7 +123,7 @@ test('the page draws its button, its line and its count from these', () => {
   // Reintroduce the old label (`inProgress ? tr('Continue') : tr('Start reading')`) or the old pick
   // (`c.find((b) => !b.readProgress?.completed …)`): this fails.
   const page = code(readFileSync(join(ROOT, 'app/series/page.tsx'), 'utf8'));
-  assert.match(page, /const openable = \(b: Book\) => !b\.pruned \|\| downloaded\.has\(b\.id\);\s*return continueChoice\(books\?\.content \?\? \[\], openable\);/,
+  assert.match(page, /const openable = \(b: Book\) => !b\.alternateOf && \(!b\.pruned \|\| downloaded\.has\(b\.id\)\);\s*return continueChoice\(books\?\.content \?\? \[\], openable\);/,
     'the button does not choose with the page\'s openable rule');
   assert.match(page, /const ctaText = books \|\| nothingYet \? continueText\(reading\)/, 'the button\'s words are not continueText\'s');
   assert.match(page, /<ContinueButton label=\{ctaText\.label\} disabled=\{!resumeBook\} onOpen=\{openReader\} \/>/);

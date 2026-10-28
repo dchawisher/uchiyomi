@@ -10,6 +10,12 @@ import { join } from 'path';
 import { FETCH_CHUNK, GHOST_CAP, chaptersLeft, chunkNumbers, countsAsBehind, heldBy, mergeRows, openableChapters, prunedLabel, prunedWords, runLabel, wholesHeld, whyLabel, type Row } from '../lib/chapterRows';
 import type { Book, Ghost } from '../lib/types';
 
+test('default reader skips retained parts, but explicitly opened parts remain navigable', () => {
+  const bs = [{ id: '20' }, { id: '20.1', alternateOf: '20' }, { id: '20.5' }, { id: '21.1' }];
+  assert.deepEqual(openableChapters(bs, new Set()).map(b => b.id), ['20', '20.5', '21.1']);
+  assert.deepEqual(openableChapters(bs, new Set(), '20.1').map(b => b.id), ['20', '20.1', '20.5', '21.1']);
+});
+
 const book = (number: number, over: Partial<Book> = {}): Book =>
   ({ id: `b${number}`, seriesId: 's', seriesTitle: 'S', name: `Chapter ${number}`, number,
      media: { pagesCount: 20 }, metadata: {}, ...over } as Book);

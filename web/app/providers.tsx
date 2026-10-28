@@ -8,6 +8,7 @@ import { AuthProvider } from '@/lib/auth';
 import { ToastProvider } from '@/components/Toast';
 import { I18nProvider } from '@/lib/I18nProvider';
 import { flushOutbox } from '@/lib/downloads';
+import { captureInstallPrompt } from '@/lib/installApp';
 
 export function Providers({ children }: { children: ReactNode }) {
   const [qc] = useState(
@@ -98,10 +99,7 @@ export function Providers({ children }: { children: ReactNode }) {
 
   // Capture the Android install prompt + flush the offline progress outbox when back online.
   useEffect(() => {
-    const onPrompt = (e: Event) => {
-      e.preventDefault();
-      (window as any).__yomiInstall = e;
-    };
+    const onPrompt = captureInstallPrompt;
     window.addEventListener('beforeinstallprompt', onPrompt);
     const flush = () => flushOutbox().catch(() => {});
     window.addEventListener('online', flush);

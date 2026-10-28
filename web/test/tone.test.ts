@@ -102,7 +102,7 @@ test('the <head> script applies only a tone that is not OLED, makes the one brow
   for (const t of TONES) assert.equal(TONE_BOOT.includes(`"${t.key}"`), t.key !== 'oled', t.key);
   // In the root layout's <head>, and so differing from what React renders for <html>: on purpose, and said so.
   const layout = code(read('app/layout.tsx'));
-  assert.match(layout, /<html lang="en" className=\{`[^`]*`\} suppressHydrationWarning>\s*<head>\s*<script dangerouslySetInnerHTML=\{\{ __html: TONE_BOOT \}\} \/>\s*<\/head>/);
+  assert.match(layout, /<html lang="en" className=\{`[^`]*`\} suppressHydrationWarning>\s*<head>\s*(?:<link[^>]+>\s*)*<script dangerouslySetInnerHTML=\{\{ __html: TONE_BOOT \}\} \/>\s*<\/head>/);
   // ⚠️ No theme-color of React's or Next's: Next re-renders `viewport.themeColor` on every client-side navigation (the bar
   // went back to black at the first click under a tone), and React matches a <meta> it rendered by its content, so once
   // this script had coloured it React added a second. Both caught by e2e/run.mjs "look settings"; reintroduce either and

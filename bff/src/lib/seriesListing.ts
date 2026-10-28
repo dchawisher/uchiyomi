@@ -16,6 +16,7 @@
 // the sources listed at the last check can be asked for -- the same footing as the fill plan, and the
 // same reason (a chapter URL never crosses the wire).
 import { q, one, tx } from './db';
+import { applyPartListing, restorePartListing, fullChapterFor } from './chapterParts';
 import { getSource, type SourceChapter } from './sources';
 import { chooseReleases, groupsOf, mergePrefs, normGroup, releaseOrder, type ChooseOpts, type ReleasePrefs, type StoredPrefs } from './releases';
 import { CHAPTER_RETRY_CAP } from './updater';
@@ -373,6 +374,8 @@ export async function replaceListing(seriesId: string, rows: ListingRow[]): Prom
       );
     }
 
+    await applyPartListing(qq, seriesId);
+
     /**
      * Give a chapter its own name, when the listing knows one and the book has none yet.
      *
@@ -630,6 +633,7 @@ export async function reapplyBlocklistInTransaction(
   for (const id of [...new Set(ids)].sort()) {
     const decision = await lockedDecision(qq, id);
     if (!decision) continue;
+    await restorePartListing(qq, id);
     const rows = await qq<StoredListingRow>(
       `SELECT number, title, published_at, scanlator, groups, source_id, chosen, status, copies, unblocked_status
          FROM series_listing WHERE series_id = $1 ORDER BY number`, [id]);
@@ -658,6 +662,7 @@ export async function reapplyBlocklistInTransaction(
       );
       changed += updated.length;
     }
+    await applyPartListing(qq, id);
   }
   return changed;
 }
@@ -691,6 +696,7 @@ export async function seriesListingGroups(groups: readonly string[]): Promise<st
 export type GhostWhy = 'missing' | 'held' | 'blocked' | 'failed' | 'floor' | 'archive' | 'covered';
 
 export interface Ghost {
+  alternateOf?: string | null;
   number: number;
   title: string | null;
   publishedAt: string | null;
@@ -757,6 +763,7 @@ export function whyOf(
 }
 
 interface GhostRow {
+  alternate_of?: string | null;
   number: number; title: string | null; published_at: Date | null; scanlator: string | null;
   groups: string[]; source_id: string; status: ListingStatus; attempts: number | null; reason: string | null;
   copies: ListingCopy[] | null; marked: boolean;
@@ -808,7 +815,8 @@ export async function listingFor(seriesId: string, opts: { floor: number | null;
   const s = await one<{ source_checked_at: Date | null }>('SELECT source_checked_at FROM lib_series WHERE id = $1', [seriesId]);
   const rows = await q<GhostRow>(
     `SELECT l.number, l.title, l.published_at, l.scanlator, l.groups, l.source_id, l.status, l.copies, f.attempts, f.reason,
-            f.status AS fail_status, (lp.user_id IS NOT NULL) AS marked
+            f.status AS fail_status, (lp.user_id IS NOT NULL) AS marked,
+            ${fullChapterFor('l.series_id', 'l.number')} AS alternate_of
        FROM series_listing l
        LEFT JOIN chapter_failures f ON f.series_id = l.series_id AND f.number = l.number
        LEFT JOIN listing_progress lp ON lp.user_id = $2 AND lp.series_id = l.series_id AND lp.number = l.number
@@ -846,6 +854,7 @@ export async function listingFor(seriesId: string, opts: { floor: number | null;
       const attempts = Number(r.attempts ?? 0);
       const cap = retryCapFor(r.fail_status, finish, CHAPTER_RETRY_CAP);
       const g: Ghost = {
+        alternateOf: r.alternate_of ?? null,
         number: Number(r.number),
         title: r.title,
         publishedAt: iso(r.published_at),

@@ -26,6 +26,7 @@ export interface OfflineChapter {
   /** Who downloaded it. Indexed, so listing is a lookup rather than a filter over everyone's records. */
   userId: string;
   bookId: string;
+  alternateOf?: string | null;
   seriesId: string;
   seriesTitle: string;
   title: string;
@@ -183,6 +184,20 @@ export async function listDownloads(): Promise<OfflineChapter[]> {
  * would put a chapter in the Downloads list that holds no pages. Never throws: this rides along with a page
  * turn and must not be able to interrupt one.
  */
+export async function syncChapterAlternatives(seriesId: string, books: Array<{ id: string; alternateOf?: string | null }>): Promise<void> {
+  const alternatives = new Map(books.map(b => [b.id, b.alternateOf ?? null]));
+  const local = await listSeriesDownloads(seriesId);
+  const changed = local.filter(c => alternatives.has(c.bookId) && c.alternateOf !== alternatives.get(c.bookId));
+  if (!changed.length) return;
+  const d = await db();
+  const t = d.transaction('chapters', 'readwrite');
+  for (const c of changed) {
+    const current = await t.store.get(c.key) as OfflineChapter | undefined;
+    if (current) await t.store.put({ ...current, alternateOf: alternatives.get(c.bookId) });
+  }
+  await t.done;
+}
+
 export async function noteOfflineProgress(bookId: string, page: number, completed: boolean): Promise<void> {
   try {
     const d = await db();
@@ -300,6 +315,7 @@ export async function downloadChapter(
     userId: owner(),
     bookId,
     seriesId: manifest.seriesId,
+    alternateOf: manifest.alternateOf ?? null,
     seriesTitle: manifest.seriesTitle,
     title: manifest.title,
     number: manifest.number,

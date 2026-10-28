@@ -449,6 +449,12 @@ function ReadingPane({ id, series, meta, save, onSaved }: {
         options={[{ value: '', label: tr('Automatic') }, ...SERIES_TYPES.filter((v) => v !== 'unknown').map((v) => ({ value: v as string, label: tr(seriesTypeKey(v)) }))]}
         onPick={(seriesType) => save({ seriesType })} />
       <LanguageRow id={id} series={series} onSaved={onSaved} />
+      <SwitchRow label={tr('Full chapters plus split releases')} on={series.fullChapters === true}
+        help={tr('Whole numbers are complete chapters; decimals are their parts. A .5 chapter stays separate unless there is a corresponding .4. Prefer full chapters for downloads; keep downloaded parts under Parts / other versions. Use “Extra — keep separate” for other bonuses.')}
+        onChange={async fullChapters => {
+          await api(`/api/admin/series/${id}`, { method: 'PATCH', json: { fullChapters } });
+          onSaved();
+        }} />
       <ChoiceRow narrow label={tr('Age rating')} value={meta.ageRating}
         help={tr('Members with an age limit below this will not see the series anywhere: not in the library, search, the reader, or an external OPDS app.')}
         options={[{ value: '', label: tr('Not rated') }, ...ages(meta.ageRating).map((a) => ({ value: String(a), label: `${a}+` }))]}

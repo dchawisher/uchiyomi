@@ -5,6 +5,7 @@
 // gets 1000 chapters of 1193.
 import { api } from './api';
 import type { Book, Page } from './types';
+import { syncChapterAlternatives } from './downloads';
 
 export const BATCH = 1000;
 /** Backstop against a route that never reports a short page: 50 × 1000 is more chapters than exist. */
@@ -25,5 +26,6 @@ export async function fetchAllBooks(seriesId: string, get: (url: string) => Prom
     // already taken -- twice on the page, and a duplicate React key. Kept once.
     for (const b of next.content) if (!seen.has(b.id)) { seen.add(b.id); content.push(b); }
   }
+  if (typeof indexedDB !== 'undefined') await syncChapterAlternatives(seriesId, content).catch(() => {});
   return { ...first, content, size: content.length, totalPages: 1, first: true, last: true };
 }

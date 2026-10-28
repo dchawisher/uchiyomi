@@ -7,6 +7,7 @@ import { cleanDescription } from './htmlText';
 import { effectiveLang } from './seriesLang';
 import { noticeBook, noticeShown, visibleBookCount } from './noticeChapters';
 import { rangeEnd, numberText } from './chapterRanges';
+import { alternateOf, alternateBook } from './chapterParts';
 import { anilistScoreOf } from './anilistScores';
 import { AUTO_DETAILS, authorOf, genresOf, summaryOf } from './autoDetailsSql';
 
@@ -22,7 +23,7 @@ function page<T>(content: T[], total: number, p: number, size: number): Page<T> 
 // ⚠️ Every name here must ALSO be produced by the inner SELECT of `seriesSrcWith` below, which enumerates
 // its columns explicitly. Adding one to only one of the two makes EVERY series read fail with "column does
 // not exist" -- the series page, the library grid, search, the home rails, OPDS, all of it.
-const SERIES_COLS = 'id, title, summary, status, genres, author, age_rating, reading_direction, books_count, cover_book_id, web, created_at, latest_mtime, auto_update, library_id, library_pinned, source_chapters, source_missing, source_checked_at, source_id, lang, work_id';
+const SERIES_COLS = 'id, title, summary, status, genres, author, age_rating, reading_direction, books_count, cover_book_id, web, created_at, latest_mtime, auto_update, library_id, library_pinned, source_chapters, source_missing, source_checked_at, source_id, lang, work_id, full_chapters, part_extras';
 
 /**
  * The one place a series is read from.
@@ -50,8 +51,12 @@ const seriesSrcWith = (gate: Gate, ctx: ViewCtx, p: Params, alias: string) => `(
          COALESCE(o.reading_direction, s.reading_direction) AS reading_direction,
          -- The stored count less the notice chapters this series hides (lib/noticeChapters.ts), so every badge,
          -- filter and sort over it, and the Komga-compatible series Mihon's tracker reads, counts what is listed.
-         ${visibleBookCount('s')} AS books_count, s.cover_book_id, s.web, s.created_at, s.latest_mtime,
-         s.auto_update, s.library_id, s.library_pinned,
+         (${visibleBookCount('s')} - CASE WHEN s.full_chapters THEN
+           (SELECT count(*) FROM lib_books fp_count WHERE fp_count.series_id = s.id
+            AND NOT ${noticeBook('fp_count.id')} AND ${alternateOf('fp_count')} IS NOT NULL) ELSE 0 END)::int AS books_count,
+         s.cover_book_id, s.web, s.created_at, s.latest_mtime,
+         s.auto_update, s.library_id, s.library_pinned, s.full_chapters,
+         ARRAY(SELECT number FROM series_part_extras WHERE series_id = s.id ORDER BY number) AS part_extras,
          -- What the source last said, so "how far behind is this?" is a column rather than a network call.
          -- Kept in step with SERIES_COLS above; see the warning there.
          s.source_chapters, s.source_missing, s.source_checked_at,
@@ -89,6 +94,8 @@ const booksSrc = (ctx: ViewCtx, p: Params, alias = 'bv') => `(
          COALESCE(ov.number, b.number) AS number,
          ${rangeEnd('b', 'ov')} AS number_end,
          ov.volume_number,
+         ${alternateOf('b')} AS alternate_of,
+         EXISTS (SELECT 1 FROM series_part_extras pe WHERE pe.series_id = b.series_id AND pe.number = COALESCE(ov.number, b.number)) AS keep_separate,
          COALESCE(ov.title,  b.title)  AS title
     FROM lib_books b
     -- The join that was missing. This carried zero references to lib_series, so a book id alone opened a
@@ -156,6 +163,8 @@ function seriesDto(r: any) {
     workId: r.work_id ?? null,
     // whether the scheduled updater pulls new chapters for this series; settable from the series page
     autoUpdate: r.auto_update !== false,
+    fullChapters: r.full_chapters === true,
+    partExtras: (r.part_extras ?? []).map(Number),
     // What the source said when it was last asked. ONE nested object, present or null, because "never
     // checked" and "checked, nothing new" are genuinely different states and a flat `sourceMissing: 0`
     // cannot tell them apart. `missing` stays nullable inside it: the updater stamps `checked_at` whenever
@@ -191,6 +200,8 @@ function bookDto(r: any) {
     name: r.title,
     number: num,
     numberEnd: end,
+    alternateOf: r.alternate_of ?? null,
+    keepSeparate: r.keep_separate === true,
     volumeNumber: r.volume_number == null ? null : Number(r.volume_number),
     media: { pagesCount: r.pages ?? 0, mediaType: 'application/vnd.comicbook+zip', status: 'READY' },
     metadata: { title: r.title, number: numberText(num, end), numberSort: num, summary: '', releaseDate: released },
@@ -429,7 +440,7 @@ const mineCte = () => `WITH mine AS (
     FROM read_progress WHERE user_id = $1
      -- Against the count that leaves hidden notice chapters out (seriesSrcWith), so a read notice cannot fill in
      -- for an unread chapter in "read" and "in progress".
-     AND NOT ${noticeBook('read_progress.book_id')}
+     AND NOT ${noticeBook('read_progress.book_id')} AND NOT ${alternateBook('read_progress.book_id')}
    GROUP BY series_id
 ), fav AS (
   SELECT series_id FROM favorites WHERE user_id = $1
@@ -489,7 +500,7 @@ async function adjacentBook(ctx: ViewCtx, id: string, dir: 'next' | 'prev') {
         -- A tombstone (lib/chapterCleanup.ts) is listed, but it is not a place to go: a reader pressing
         -- "next" must not land on a chapter whose pages were deleted. The current chapter itself may be one
         -- (its neighbours are still meaningful); only the candidates are filtered.
-        AND bk.pruned_at IS NULL
+        AND bk.pruned_at IS NULL AND bk.alternate_of IS NULL
       ORDER BY bk.number ${order}, bk.file ${order} LIMIT 1`,
     p.values as any[],
   );

@@ -439,8 +439,9 @@ function ButtonsWrap({ compact, menuOpen, children }: { compact: boolean; menuOp
   return <div className={buttonsClass(menuOpen)}>{children}</div>;
 }
 
-function ChapterRow({ book, downloaded, sourceNames, primarySource, versions, onReader, onToggleDownload, onMark, onEdit, onVersions, onReplaceFrom, onCopyPath, onHide, onRefetch, onDelete, selectable, selected, onToggle, compact, lit, talk, onTalk }: {
+function ChapterRow({ book, downloaded, sourceNames, primarySource, versions, onReader, onToggleDownload, onMark, onEdit, onVersions, onReplaceFrom, onCopyPath, onHide, onKeepSeparate, onRefetch, onDelete, selectable, selected, onToggle, compact, lit, talk, onTalk }: {
   book: Book;
+  onKeepSeparate?: () => void;
   /** v0.87.0: the chapter's talk for the caption, and the menu's Comments, while the household has any. */
   talk?: ChapterTalkCount | null;
   onTalk?: () => void;
@@ -496,6 +497,7 @@ function ChapterRow({ book, downloaded, sourceNames, primarySource, versions, on
     ...(onVersions ? [{ label: tr('Versions'), divider: true, onSelect: onVersions }] : []),
     ...(onReplaceFrom ? [{ label: tr('Replace from another source…'), onSelect: onReplaceFrom }] : []),
     ...(onEdit ? [{ label: tr('Edit chapter or volume'), divider: true, onSelect: onEdit }] : []),
+    ...(onKeepSeparate ? [{ label: book.keepSeparate ? tr('Use publishing convention') : tr('Extra — keep separate'), onSelect: onKeepSeparate }] : []),
     ...(onCopyPath ? [{ label: tr('Copy file path'), divider: !onEdit, onSelect: onCopyPath }] : []),
     ...(onHide ? [{ label: tr('Hide chapter {n}', { n: book.number }), divider: !onEdit && !onCopyPath, hook: 'hide-chapter', onSelect: onHide }] : []),
     ...(onRefetch ? [{ label: tr('Fetch again'), divider: true, onSelect: onRefetch }] : []),
@@ -607,8 +609,10 @@ function SelectBubble({ selected }: { selected: boolean }) {
  * dimmed, because "this server does not have it" is still true. The mark lives in its own table and becomes
  * ordinary progress when the chapter lands (bff lib/listingProgress).
  */
-function GhostRow({ ghost, sourceNames, primarySource, selectable, selected, onToggle, onFetch, onOpen, onMark, onHide, compact, wholeHere }: {
+function GhostRow({ ghost, sourceNames, primarySource, selectable, selected, onToggle, onFetch, onOpen, onMark, onHide, onKeepSeparate, keepSeparate, compact, wholeHere }: {
   ghost: Ghost;
+  onKeepSeparate?: () => void;
+  keepSeparate?: boolean;
   /** The series holds a chapter at this ghost's whole number: what a covered row's caption says (lib/chapterRows.ts whyLabel). */
   wholeHere?: boolean;
   /** ChapterRow's compact list, so the two kinds of row still line up where they interleave. */
@@ -637,9 +641,10 @@ function GhostRow({ ghost, sourceNames, primarySource, selectable, selected, onT
   // The actions that apply to a chapter that is not here, on the same menu as a chapter row's (#100).
   const menu = useContextMenu(() => [
     ...(onMark ? [{ label: read ? tr('Mark unread') : tr('Mark read'), onSelect: () => onMark(!read) }] : []),
+    ...(onKeepSeparate ? [{ label: keepSeparate ? tr('Use publishing convention') : tr('Extra — keep separate'), onSelect: onKeepSeparate }] : []),
     ...(onHide ? [{ label: tr('Hide chapter {n}', { n: ghost.number }), divider: !!onMark, hook: 'hide-chapter', onSelect: onHide }] : []),
   ], { label: tr('Chapter actions') });
-  const hasMenu = !!onMark || !!onHide;
+  const hasMenu = !!onMark || !!onHide || !!onKeepSeparate;
   const menuBind = hasMenu && !selectable ? menu.bind : {};
   const label = whyLabel(ghost, { wholeHere });
   // The same rule as the chapter row's caption: the series' own source is the normal case, not news. The
@@ -808,6 +813,8 @@ function SeriesInner() {
   // #240: the chapter numbers a Hide asks about -- a row's ⋯, or the select bar's -- and More's Show hidden chapters.
   const [hiding, setHiding] = useState<number[] | null>(null);
   const [showHidden, setShowHidden] = useState(false);
+  const [showParts, setShowParts] = useState(false);
+  useEffect(() => { setShowParts(false); }, [id]);
   const [started, setStarted] = useState<StartedJob | null>(null);
   const clearPicks = () => { setPickedBooks(new Set()); setPickedGhosts(new Set()); };
   const leaveSelect = () => { setSelecting(false); clearPicks(); };
@@ -990,9 +997,11 @@ function SeriesInner() {
   // chapter rows and joins the ghosts (chapterRows.ts ghostOfDeleted) -- unless this device saved a copy, which keeps
   // it a chapter you can open. The dedupe above still counts it, so a listed ghost on its number is not drawn twice.
   const asGhost = useCallback((b: Book) => listing?.deletedAsGhosts === true && deliberatelyDeleted(b) && !downloaded.has(b.id), [listing?.deletedAsGhosts, downloaded]);
-  const rowBooks = useMemo(() => allBooks.filter((b) => !asGhost(b)), [allBooks, asGhost]);
+  const rowBooks = useMemo(() => allBooks.filter((b) => !asGhost(b) && !b.alternateOf), [allBooks, asGhost]);
+  const alternateBooks = useMemo(() => allBooks.filter((b) => !asGhost(b) && b.alternateOf), [allBooks, asGhost]);
   const deletedGhosts = useMemo(() => allBooks.filter(asGhost).map(ghostOfDeleted), [allBooks, asGhost]);
-  const visibleGhosts = useMemo(() => (showGhosts ? [...ghosts.filter((g) => !haveNumbers.has(g.number)), ...deletedGhosts] : []), [showGhosts, ghosts, haveNumbers, deletedGhosts]);
+  const visibleGhosts = useMemo(() => (showGhosts ? [...ghosts.filter((g) => !haveNumbers.has(g.number)), ...deletedGhosts].filter(g => !g.alternateOf) : []), [showGhosts, ghosts, haveNumbers, deletedGhosts]);
+  const alternateGhosts = useMemo(() => (showGhosts ? [...ghosts.filter(g => !haveNumbers.has(g.number)), ...deletedGhosts].filter(g => g.alternateOf) : []), [showGhosts, ghosts, haveNumbers, deletedGhosts]);
   // The names the filter offers: the groups route's, or -- when it answered with nothing (a series scanned
   // from disk, a route that is not there) -- whatever the chapters on disk name, so a hand-built library
   // with tagged files still gets the filter.
@@ -1066,7 +1075,7 @@ function SeriesInner() {
   // saved a copy, in which case that copy is the last one and opening it is right. Without this, "Continue" on a
   // series whose next unread chapter was pruned opened straight onto "Chapter deleted".
   const reading = useMemo(() => {
-    const openable = (b: Book) => !b.pruned || downloaded.has(b.id);
+    const openable = (b: Book) => !b.alternateOf && (!b.pruned || downloaded.has(b.id));
     return continueChoice(books?.content ?? [], openable);
   }, [books, downloaded]);
   const resumeBook = reading.book;
@@ -1290,7 +1299,7 @@ function SeriesInner() {
     // A pruned chapter has no pages left on the server, so including it would "save" an empty chapter to
     // this device and then report it as downloaded. Skipped silently: it is not an error and there is
     // nothing the reader can do about it.
-    const todo = books.content.filter((b) => !downloaded.has(b.id) && !b.pruned);
+    const todo = books.content.filter((b) => !downloaded.has(b.id) && !b.pruned && !b.alternateOf);
     if (!todo.length) { toast(tr('Everything is already saved offline'), 'success'); return; }
     setDownloadingAll(true);
     await saveOffline(todo);
@@ -1681,12 +1690,18 @@ function SeriesInner() {
   const seriesHref = `/series/?id=${encodeURIComponent(id)}`;
   const notesHref = `/moments/?series=${encodeURIComponent(id)}`;
   const openReader = () => { if (resumeBook) router.push(`/reader/?book=${resumeBook.id}`); };
+  const changePartException = async (number: number, keepSeparate: boolean) => {
+    try {
+      await api(`/api/admin/series/${id}/part-exception`, { method: 'PUT', json: { number, keepSeparate } });
+      for (const k of [['series', id], ['series-books', id], ['series-listing', id], ['home'], ['library']]) qc.invalidateQueries({ queryKey: k });
+    } catch (e) { toast(msgOf(e, tr('Could not save')), 'error'); }
+  };
   // While the chapters load the button waits with no words rather than guessing them; a series with none says so at once.
   const ctaText = books || nothingYet ? continueText(reading) : { label: '', caption: '' };
   // How far through the series: the chapters on the list once they are here (the list the button chose from), the
   // series' own counts until then. Nothing on a series with no chapters.
   const readCount = useMemo(() => (books
-    ? { read: books.content.filter((b) => b.readProgress?.completed).length, total: books.content.length }
+    ? { read: books.content.filter((b) => !b.alternateOf && b.readProgress?.completed).length, total: books.content.filter(b => !b.alternateOf).length }
     : { read: series?.booksReadCount ?? 0, total: series?.booksCount ?? 0 }), [books, series]);
   const readLine = readCountText(readCount.read, readCount.total);
   // v0.61.0: what comes next -- the release radar's estimate, as an estimate (lib/radar.ts): "Next chapter ~Friday ·
@@ -1891,6 +1906,8 @@ function SeriesInner() {
                 onReader={() => router.push(`/reader/?book=${b.id}`)} onToggleDownload={() => toggleDownload(b.id)}
                 onMark={(mode) => markChapter(b, mode)}
                 onEdit={isAdmin ? () => setEditChapter(b) : undefined}
+                onKeepSeparate={isAdmin && series?.fullChapters && !Number.isInteger(b.number) && b.volumeNumber == null
+                  ? () => void changePartException(b.number, !b.keepSeparate) : undefined}
                 onCopyPath={isAdmin && b.path ? () => void copyPath(b.path!, toast) : undefined}
                 onHide={isAdmin && b.numberEnd == null ? () => setHiding([b.number]) : undefined}
                 onRefetch={isAdmin && b.owned ? () => setConfirming({ what: 'refetch', books: [b] }) : undefined}
@@ -1906,6 +1923,9 @@ function SeriesInner() {
             return (
               <GhostRow key={`g:${r.ghost.bookId ?? r.ghost.number}`} ghost={r.ghost} compact={compact} sourceNames={sourceNames} primarySource={primarySource}
                 wholeHere={haveWholes.has(Math.floor(r.ghost.number))}
+                keepSeparate={series?.partExtras?.includes(r.ghost.number)}
+                onKeepSeparate={isAdmin && series?.fullChapters && !Number.isInteger(r.ghost.number)
+                  ? () => void changePartException(r.ghost.number, !series.partExtras?.includes(r.ghost.number)) : undefined}
                 selectable={selecting} selected={pickedGhosts.has(ghostKey(r.ghost))} onToggle={() => togglePickGhost(r.ghost)}
                 onOpen={() => setChapterSheet({ number: r.ghost.number, ghost: r.ghost })}
                 // Same audience and same exclusion as the bar's Fetch (`fetchable`): a row only blocked
@@ -1966,6 +1986,29 @@ function SeriesInner() {
         {!books && Array.from({ length: 8 }).map((_, i) => <div key={i} className="skeleton my-3 h-6 rounded" />)}
       </div>
       {pages > 1 && <ChapterPager page={shownPage} pages={pages} rows={rows} asc={asc} onPage={(p) => goPage(p, true)} />}
+      {alternateBooks.length + alternateGhosts.length > 0 && (
+        <section className="mt-5 border-t border-ink-800 pt-4">
+          <button className="btn-key" aria-expanded={showParts} aria-controls="parts-list" onClick={() => setShowParts(v => !v)}>
+            {tr('Parts / other versions')} ({alternateBooks.length + alternateGhosts.length})
+          </button>
+          {showParts && <div id="parts-list" className="mt-3">
+            <p className="mb-3 text-xs text-fog-500">{tr('These parts are retained. The reader uses the downloaded full chapter instead.')}</p>
+            <div className={chapterRowsClass(view)}>
+              {alternateBooks.map(b => <ChapterRow key={b.id} book={b} compact={compact} downloaded={downloaded.has(b.id)} sourceNames={sourceNames} primarySource={primarySource}
+                onReader={() => router.push(`/reader/?book=${b.id}`)} onToggleDownload={() => toggleDownload(b.id)}
+                onMark={mode => markChapter(b, mode)} onEdit={isAdmin ? () => setEditChapter(b) : undefined}
+                onVersions={() => setChapterSheet({ number: b.number, book: b })}
+                onKeepSeparate={isAdmin ? () => void changePartException(b.number, true) : undefined} />)}
+              {alternateGhosts.map(g => <GhostRow key={`part:${g.number}`} ghost={g} compact={compact} wholeHere
+                sourceNames={sourceNames} primarySource={primarySource}
+                onOpen={() => setChapterSheet({ number: g.number, ghost: g })}
+                onFetch={canDownload(user) ? () => fetchOne(g.number) : undefined}
+                onMark={completed => markGhost(g, completed)}
+                onKeepSeparate={isAdmin ? () => void changePartException(g.number, true) : undefined} />)}
+            </div>
+          </div>}
+        </section>
+      )}
     </div>
   );
 
@@ -2213,7 +2256,7 @@ function SeriesInner() {
       {editing && series && (
         // Keyed by the series: its fields are seeded once, from the series it opened on.
         <SeriesEditor key={id} id={id} series={series} tab={editing} onClose={() => setEditing(null)}
-          onSaved={() => { for (const k of [['series', id], ['series-books', id], ['home'], ['library']]) qc.invalidateQueries({ queryKey: k }); }}
+          onSaved={() => { for (const k of [['series', id], ['series-books', id], ['series-listing', id], ['home'], ['library']]) qc.invalidateQueries({ queryKey: k }); }}
           // Its Sources & translations link closes it first: one at a time, as the sheets above.
           onOpenSources={() => { setEditing(null); setSourcesOpen(true); }}
           onNewBanner={newBanner} />

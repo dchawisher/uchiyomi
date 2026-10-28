@@ -29,7 +29,9 @@
 // v11 (v0.49.0): /api/admin/* is network-only now (the rule below). Every admin answer a v10 worker stored went
 //   into the capped API cache -- Health polls the repair's status every 2 s while a run goes -- and nothing reads
 //   those entries any more, so they would sit there, crowding out a reader's cached re-reads, until a bump.
-const VERSION = 'v11';
+// v12: old workers cached the manifest forever, including an authentication redirect's HTML.
+// Clear those poisoned entries and refresh installation metadata from the network.
+const VERSION = 'v12';
 const SHELL = `yomi-shell-${VERSION}`;
 const STATIC = `yomi-static-${VERSION}`;
 const IMG = `yomi-img-${VERSION}`;
@@ -116,7 +118,8 @@ async function cacheFirst(req, name, trim) {
   if (hit) return hit;
   try {
     const res = await fetch(req);
-    if (res.ok || res.type === 'opaque') {
+    if ((res.ok || res.type === 'opaque') && !res.redirected
+        && (!new URL(req.url).pathname.startsWith('/icons/') || (res.headers.get('content-type') || '').startsWith('image/'))) {
       c.put(req, res.clone());
       if (trim) trimCache(name, IMG_MAX);
     }
@@ -249,10 +252,26 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
+  if (url.pathname === '/manifest.webmanifest') {
+    e.respondWith((async () => {
+      const c = await caches.open(STATIC);
+      try {
+        const res = await fetch(req, { cache: 'no-cache' });
+        if (!res.ok || res.redirected || !(res.headers.get('content-type') || '').includes('json')) throw new Error('Invalid manifest response');
+        await res.clone().json();
+        await c.put(req, res.clone());
+        return res;
+      } catch {
+        const saved = await c.match(req);
+        return saved && (saved.headers.get('content-type') || '').includes('json') ? saved : Response.error();
+      }
+    })());
+    return;
+  }
+
   if (
     url.pathname.startsWith('/_next/static') ||
-    url.pathname.startsWith('/icons') ||
-    url.pathname === '/manifest.webmanifest'
+    url.pathname.startsWith('/icons')
   ) {
     e.respondWith(cacheFirst(req, STATIC, false));
     return;
