@@ -298,6 +298,7 @@ function DownloadTile({ t, section, admin, nameOf, onCancel, focusRef }: {
       {/* the chapter coming in now, page by page, with the time left. */}
       {section === 'running' && !t.archive && <PageProgress entries={t.entries} job={job} />}
       {status && <p className={`mt-0.5 truncate text-[11px] ${job?.cancelRequested ? 'text-fog-300' : 'text-fog-500'}`}>{status}</p>}
+      {origin && <p className="truncate text-[11px] text-fog-500">{origin}</p>}
       {/* What the job did that the ring cannot show: a chapter taken from another source, one saved short. */}
       {job && jobNoteLines(job, nameOf).map((line, i) => (
         <p key={i} className="mt-0.5 text-[11px] leading-snug text-fog-400">{line}</p>
@@ -477,6 +478,7 @@ function CameInTile({ g }: { g: ActivityGroup }) {
         </p>
       )}
       {g.archiveFinished && <p className="line-clamp-2 text-[11px] leading-snug text-amber-300/90">{archiveProgressText(g.archiveFinished.entry)}</p>}
+      <p className="truncate text-[11px] text-fog-500">{g.origins.filter((o) => !(summed && o === 'archive')).map(originLabel).join(', ')}</p>
       {/* The job cards' own words for it ("2 chapters saved with pages missing"), one and many. */}
       {jobNoteLines({ partial: g.partial }).map((line, i) => <p key={i} className="text-[11px] text-fog-500">{line}</p>)}
     </div>
